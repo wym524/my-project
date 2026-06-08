@@ -1742,10 +1742,13 @@ app.post('/api/admin/quizzes/generate', async (req, res) => {
   const session = requireAdmin(req, res);
   if (!session) return;
   const { username, title, mode = 'mixed', wordCount = 10, questionCount = 5 } = req.body || {};
-  if (!username) return res.status(400).json({ success: false, message: '请选择目标用户' });
-  const targetUser = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-  if (!targetUser) return res.status(404).json({ success: false, message: '用户不存在' });
-  const actualTitle = title || (username + ' 的智能练习卷 ' + new Date().toLocaleString('zh-CN'));
+  // username 为空字符串表示「全员可见」
+  const isAllUsers = !username || !username.trim();
+  if (!isAllUsers) {
+    const targetUser = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    if (!targetUser) return res.status(404).json({ success: false, message: '用户不存在' });
+  }
+  const actualTitle = title || (isAllUsers ? '全员练习卷 ' + new Date().toLocaleString('zh-CN') : (username + ' 的智能练习卷 ' + new Date().toLocaleString('zh-CN')));
 
   let wordItems = [];
   let questionItems = [];
@@ -1753,18 +1756,23 @@ app.post('/api/admin/quizzes/generate', async (req, res) => {
 
   // 模式 1：基于用户已掌握内容，反出相关题目（巩固模式）
   if (mode === 'review' || mode === 'mixed') {
-    const knownIds = db.prepare('SELECT word_id FROM user_words WHERE username = ? AND known = 1 ORDER BY reviewed_at DESC LIMIT ?').all(username, wordCount * 2);
-    if (knownIds && knownIds.length > 0) {
-      const placeholders = knownIds.map(() => '?').join(',');
-      wordItems = db.prepare(`SELECT id, word, meaning, example, category FROM words WHERE id IN (${placeholders}) ORDER BY RANDOM() LIMIT ?`).all(...knownIds.map(k => k.word_id), wordCount);
+    if (!isAllUsers) {
+      const knownIds = db.prepare('SELECT word_id FROM user_words WHERE username = ? AND known = 1 ORDER BY reviewed_at DESC LIMIT ?').all(username, wordCount * 2);
+      if (knownIds && knownIds.length > 0) {
+        const placeholders = knownIds.map(() => '?').join(',');
+        wordItems = db.prepare(`SELECT id, word, meaning, example, category FROM words WHERE id IN (${placeholders}) ORDER BY RANDOM() LIMIT ?`).all(...knownIds.map(k => k.word_id), wordCount);
+      }
     }
     questionItems = db.prepare(`SELECT id, module, type, prompt, options, answer, explanation FROM questions WHERE difficulty <= 2 ORDER BY RANDOM() LIMIT ?`).all(questionCount);
   }
 
   // 模式 2：从用户未掌握的范围出题（查漏补缺模式）
   if (mode === 'weak') {
-    const knownIds = db.prepare('SELECT word_id FROM user_words WHERE username = ? AND known = 1').all(username);
-    const knownSet = knownIds.map(k => k.word_id);
+    const knownSet = [];
+    if (!isAllUsers) {
+      const knownIds = db.prepare('SELECT word_id FROM user_words WHERE username = ? AND known = 1').all(username);
+      for (const k of knownIds) knownSet.push(k.word_id);
+    }
     if (knownSet.length === 0) {
       wordItems = db.prepare('SELECT id, word, meaning, example, category FROM words ORDER BY RANDOM() LIMIT ?').all(wordCount);
     } else {
@@ -1778,8 +1786,9 @@ app.post('/api/admin/quizzes/generate', async (req, res) => {
   if (mode === 'ai') {
     const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
     if (cfg && cfg.api_key) {
-      const knownList = db.prepare(`SELECT w.word, w.meaning FROM user_words uw JOIN words w ON w.id = uw.word_id WHERE uw.username = ? AND uw.known = 1 ORDER BY uw.reviewed_at DESC LIMIT 15`).all(username);
-      const prompt = `为学生"${username}"生成一份雅思练习卷。该学生已掌握的单词包括：${knownList.slice(0, 10).map(k => k.word).join(', ')}。请严格返回 JSON，不要任何解释文字：{"words": [{"word":"...","meaning":"...","example":"..."}], "questions": [{"type":"choice","prompt":"题目","options":["A","B","C","D"],"answer":"A","explanation":"解析"}]}`;
+      const knownList = isAllUsers ? [] : db.prepare(`SELECT w.word, w.meaning FROM user_words uw JOIN words w ON w.id = uw.word_id WHERE uw.username = ? AND uw.known = 1 ORDER BY uw.reviewed_at DESC LIMIT 15`).all(username);
+      const displayName = isAllUsers ? '所有学生' : username;
+      const prompt = `为学生"${displayName}"生成一份雅思练习卷。${isAllUsers ? '该练习卷为所有学生通用，请选择中低难度的高频词汇和题目。' : '该学生已掌握的单词包括：' + knownList.slice(0, 10).map(k => k.word).join(', ')}。请严格返回 JSON，不要任何解释文字：{"words": [{"word":"...","meaning":"...","example":"..."}], "questions": [{"type":"choice","prompt":"题目","options":["A","B","C","D"],"answer":"A","explanation":"解析"}]}`;
       const aiResult = await callAI([{ role: 'user', content: prompt }], cfg);
       if (aiResult && aiResult.success) {
         try {
@@ -1868,7 +1877,7 @@ app.get('/api/my-quizzes', (req, res) => {
       (SELECT COUNT(*) FROM quiz_items WHERE quiz_id = q.id) AS total_items,
       (SELECT COUNT(*) FROM quiz_answers WHERE quiz_id = q.id AND username = ?) AS my_answers
     FROM quizzes q
-    WHERE q.target_username = ? OR q.target_username IS NULL
+    WHERE q.target_username = ? OR q.target_username IS NULL OR q.target_username = ''
     ORDER BY q.id DESC
   `).all(session.username, session.username);
   return res.json({ success: true, data: quizzes });
