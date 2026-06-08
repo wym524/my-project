@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雅思学习空间</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">📚 雅思学习空间</div>
+      <div class="right-group">
+        <span id="adminBadge" style="display:none;" class="admin-badge-red">管理员</span>
+        <span class="username" id="username">--</span>
+        <button class="logout-btn" id="logoutBtn">退出登录</button>
+      </div>
+    </div>
+
+    <h2 class="page-title">学习模块</h2>
+    <p class="page-subtitle">选择一个模块开始你的学习</p>
+
+    <div class="module-grid">
+      <a class="module-card" href="words.html">
+        <div class="icon">📖</div>
+        <div class="mc-title">背单词</div>
+        <div class="mc-desc">分类学习雅思核心词汇，掌握高频单词</div>
+      </a>
+      <a class="module-card" href="questions.html">
+        <div class="icon">✏️</div>
+        <div class="mc-title">真题练习</div>
+        <div class="mc-desc">阅读、听力真题，选择题填空题全面覆盖</div>
+      </a>
+      <a class="module-card" href="speaking.html">
+        <div class="icon">🎤</div>
+        <div class="mc-title">口语练习</div>
+        <div class="mc-desc">Part 1/2/3 话题，配套参考回答</div>
+      </a>
+      <a class="module-card" href="writing.html">
+        <div class="icon">📝</div>
+        <div class="mc-title">写作练习</div>
+        <div class="mc-desc">大作文小作文真题，参考思路与范文</div>
+      </a>
+    </div>
+
+    <div class="content-row">
+      <div class="panel">
+        <div class="section-title">📋 我的任务</div>
+        <div id="tasksList">
+          <div class="empty-tip">加载中...</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="section-title">📊 学习统计</div>
+        <div id="statsPanel">
+          <div class="empty-tip">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var usernameEl = document.getElementById('username');
+    var adminBadge = document.getElementById('adminBadge');
+    var logoutBtn = document.getElementById('logoutBtn');
+    var tasksList = document.getElementById('tasksList');
+    var statsPanel = document.getElementById('statsPanel');
+    var currentUser = null;
+
+    function showToast(msg, type) {
+      var t = document.createElement('div');
+      t.className = 'toast toast-' + (type || 'info');
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 2500);
+    }
+
+    fetch('/api/me')
+      .then(function(r) {
+        if (!r.ok) { window.location.href = '/login.html'; return null; }
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data) return;
+        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
+        currentUser = data;
+        usernameEl.textContent = data.username;
+        if (data.role === 'admin') {
+          adminBadge.style.display = 'inline-block';
+        }
+        loadTasks();
+        loadStats();
+      })
+      .catch(function() { window.location.href = '/login.html'; });
+
+    logoutBtn.addEventListener('click', function() {
+      fetch('/api/logout', { method: 'POST' })
+        .then(function() { window.location.href = '/login.html'; });
+    });
+
+    function loadTasks() {
+      fetch('/api/tasks')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success || !data.data || data.data.length === 0) {
+            tasksList.innerHTML = '<div class="empty-tip">暂无任务</div>';
+            return;
+          }
+          var html = '';
+          data.data.forEach(function(task) {
+            var statusText = task.status === 'completed' ? '已完成' : '待完成';
+            var statusClass = task.status === 'completed' ? 'status-completed' : 'status-pending';
+            var moduleText = formatModule(task.module);
+            var completedText = task.completed_at ? ('完成于 ' + formatDate(task.completed_at)) : '';
+            html += '<div class="task-item" data-id="' + task.id + '">' +
+              '<div class="task-title">' + escapeHtml(task.title) + '</div>' +
+              (task.description ? ('<div class="task-desc">' + escapeHtml(task.description) + '</div>') : '') +
+              '<div class="task-meta">' +
+              '<span class="module-tag">' + moduleText + '</span>' +
+              '<span class="status-tag ' + statusClass + '">' + statusText + '</span>' +
+              (completedText ? ('<span>' + completedText + '</span>') : '') +
+              '</div>' +
+              '</div>';
+          });
+          tasksList.innerHTML = html;
+        })
+        .catch(function() {
+          tasksList.innerHTML = '<div class="empty-tip">加载失败</div>';
+        });
+    }
+
+    function loadStats() {
+      fetch('/api/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success || !data.data) {
+            statsPanel.innerHTML = '<div class="empty-tip">暂无统计</div>';
+            return;
+          }
+          var d = data.data;
+          statsPanel.innerHTML = '<div class="stats-grid">' +
+            '<div class="stat-card"><div class="num">' + (d.knownWords || 0) + '</div><div class="label">掌握单词</div></div>' +
+            '<div class="stat-card"><div class="num">' + (d.answeredQuestions || 0) + '</div><div class="label">完成题目</div></div>' +
+            '<div class="stat-card"><div class="num">' + (d.completedTasks || 0) + '/' + (d.totalTasks || 0) + '</div><div class="label">任务完成</div></div>' +
+            '</div>';
+        })
+        .catch(function() {
+          statsPanel.innerHTML = '<div class="empty-tip">加载失败</div>';
+        });
+    }
+
+    function formatModule(m) {
+      var map = { words: '背单词', questions: '真题', reading: '阅读', listening: '听力', speaking: '口语', writing: '写作' };
+      return map[m] || m || '其他';
+    }
+
+    function formatDate(d) {
+      if (!d) return '';
+      var dt = new Date(d);
+      if (isNaN(dt.getTime())) return d;
+      return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+    }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+  </script>
+</body>
+</html>

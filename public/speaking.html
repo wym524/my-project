@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>口语练习 - 雅思学习空间</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">🎤 口语练习</div>
+      <div class="right-group">
+        <a href="learning.html" style="color:#fff;font-size:13px;text-decoration:none;">← 返回学习空间</a>
+        <span class="username" id="username">--</span>
+        <button class="logout-btn" id="logoutBtn">退出登录</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-item">
+        <label>Part：</label>
+        <select id="partSelect">
+          <option value="">全部</option>
+          <option value="part1">Part 1</option>
+          <option value="part2">Part 2</option>
+          <option value="part3">Part 3</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-sm" id="applyBtn">应用筛选</button>
+    </div>
+
+    <div class="split-layout">
+      <div class="list-panel" id="topicList">
+        <div class="empty-tip">加载中...</div>
+      </div>
+      <div class="detail-panel" id="topicDetail">
+        <div class="empty-tip">请从左侧选择一个话题</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var usernameEl = document.getElementById('username');
+    var logoutBtn = document.getElementById('logoutBtn');
+    var partSelect = document.getElementById('partSelect');
+    var applyBtn = document.getElementById('applyBtn');
+    var topicList = document.getElementById('topicList');
+    var topicDetail = document.getElementById('topicDetail');
+    var topics = [];
+    var currentTopic = null;
+
+    function showToast(msg, type) {
+      var t = document.createElement('div');
+      t.className = 'toast toast-' + (type || 'info');
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 2000);
+    }
+
+    fetch('/api/me')
+      .then(function(r) {
+        if (!r.ok) { window.location.href = '/login.html'; return null; }
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data) return;
+        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
+        usernameEl.textContent = data.username;
+        loadTopics();
+      })
+      .catch(function() { window.location.href = '/login.html'; });
+
+    logoutBtn.addEventListener('click', function() {
+      fetch('/api/logout', { method: 'POST' })
+        .then(function() { window.location.href = '/login.html'; });
+    });
+
+    applyBtn.addEventListener('click', loadTopics);
+
+    function loadTopics() {
+      var part = partSelect.value;
+      var url = '/api/speaking?limit=100';
+      if (part) url += '&part=' + encodeURIComponent(part);
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success || !data.data || data.data.length === 0) {
+            topics = [];
+            topicList.innerHTML = '<div class="empty-tip">暂无话题</div>';
+            topicDetail.innerHTML = '<div class="empty-tip">暂无话题</div>';
+            return;
+          }
+          topics = data.data;
+          renderTopicList();
+          selectTopic(topics[0]);
+        })
+        .catch(function() {
+          topicList.innerHTML = '<div class="empty-tip">加载失败</div>';
+        });
+    }
+
+    function renderTopicList() {
+      var html = '';
+      topics.forEach(function(t, i) {
+        var active = currentTopic && currentTopic.id === t.id ? 'active' : '';
+        var partText = t.part ? t.part.toUpperCase() : 'PART';
+        html += '<div class="list-item ' + active + '" data-idx="' + i + '">' +
+          '<div>' + escapeHtml(t.topic) + '</div>' +
+          '<div class="item-sub">' + partText + '</div>' +
+          '</div>';
+      });
+      topicList.innerHTML = html;
+      var items = topicList.querySelectorAll('.list-item');
+      items.forEach(function(item) {
+        item.addEventListener('click', function() {
+          var idx = Number(item.getAttribute('data-idx'));
+          selectTopic(topics[idx]);
+          renderTopicList();
+        });
+      });
+    }
+
+    function selectTopic(t) {
+      currentTopic = t;
+      var partText = t.part ? t.part.toUpperCase() : 'PART';
+      var html = '';
+      html += '<div class="d-title">' + escapeHtml(t.topic) + '</div>';
+      html += '<div class="d-meta">' +
+        '<span class="tag tag-module">' + partText + '</span>' +
+        '</div>';
+
+      if (t.prompts && t.prompts.length > 0) {
+        html += '<div class="d-section-title">💡 提示问题</div>';
+        html += '<ul class="prompt-list">';
+        t.prompts.forEach(function(p) {
+          html += '<li>' + escapeHtml(p) + '</li>';
+        });
+        html += '</ul>';
+      }
+
+      if (t.sample_answer) {
+        html += '<div class="collapsible">' +
+          '<button class="collapse-toggle" id="sampleToggle">📖 查看参考回答 ▾</button>' +
+          '<div class="collapse-content" id="sampleContent">' +
+          '<div class="sample-box">' + escapeHtml(t.sample_answer) + '</div>' +
+          '</div>' +
+          '</div>';
+      }
+
+      html += '<div style="margin-top:24px;text-align:center;">' +
+        '<button class="btn-primary" id="practiceBtn">🎤 开始练习</button>' +
+        '</div>';
+
+      html += '<div id="practiceLog" style="margin-top:16px;"></div>';
+
+      topicDetail.innerHTML = html;
+
+      var toggle = document.getElementById('sampleToggle');
+      if (toggle) {
+        toggle.addEventListener('click', function() {
+          var content = document.getElementById('sampleContent');
+          content.classList.toggle('open');
+          toggle.textContent = content.classList.contains('open') ? '📖 收起参考回答 ▴' : '📖 查看参考回答 ▾';
+        });
+      }
+
+      var practiceBtn = document.getElementById('practiceBtn');
+      practiceBtn.addEventListener('click', function() {
+        markAsPracticed(t);
+      });
+    }
+
+    function markAsPracticed(t) {
+      fetch('/api/speaking/' + t.id + '/practice', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success) {
+            showToast('已记录练习 ✓', 'success');
+            var log = document.getElementById('practiceLog');
+            log.innerHTML = '<div style="background:#d1fae5;color:#065f46;padding:10px;border-radius:6px;text-align:center;font-size:14px;">✅ 已完成该话题练习 - ' + new Date().toLocaleString('zh-CN') + '</div>';
+          } else {
+            showToast(data.message || '操作失败', 'error');
+          }
+        })
+        .catch(function() {
+          showToast('网络异常', 'error');
+        });
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>写作练习 - 雅思学习空间</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">📝 写作练习</div>
+      <div class="right-group">
+        <a href="learning.html" style="color:#fff;font-size:13px;text-decoration:none;">← 返回学习空间</a>
+        <span class="username" id="username">--</span>
+        <button class="logout-btn" id="logoutBtn">退出登录</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-item">
+        <label>类型：</label>
+        <select id="typeSelect">
+          <option value="">全部</option>
+          <option value="大作文">大作文</option>
+          <option value="小作文">小作文</option>
+        </select>
+      </div>
+      <button class="btn-primary btn-sm" id="applyBtn">应用筛选</button>
+    </div>
+
+    <div class="split-layout">
+      <div class="list-panel" id="topicList">
+        <div class="empty-tip">加载中...</div>
+      </div>
+      <div class="detail-panel" id="topicDetail">
+        <div class="empty-tip">请从左侧选择一个写作题目</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var usernameEl = document.getElementById('username');
+    var logoutBtn = document.getElementById('logoutBtn');
+    var typeSelect = document.getElementById('typeSelect');
+    var applyBtn = document.getElementById('applyBtn');
+    var topicList = document.getElementById('topicList');
+    var topicDetail = document.getElementById('topicDetail');
+    var topics = [];
+    var currentTopic = null;
+    var practicedSet = {};
+
+    function showToast(msg, type) {
+      var t = document.createElement('div');
+      t.className = 'toast toast-' + (type || 'info');
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 2000);
+    }
+
+    fetch('/api/me')
+      .then(function(r) {
+        if (!r.ok) { window.location.href = '/login.html'; return null; }
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data) return;
+        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
+        usernameEl.textContent = data.username;
+        loadTopics();
+      })
+      .catch(function() { window.location.href = '/login.html'; });
+
+    logoutBtn.addEventListener('click', function() {
+      fetch('/api/logout', { method: 'POST' })
+        .then(function() { window.location.href = '/login.html'; });
+    });
+
+    applyBtn.addEventListener('click', loadTopics);
+
+    function loadTopics() {
+      var tp = typeSelect.value;
+      var url = '/api/writing?limit=100';
+      if (tp) url += '&type=' + encodeURIComponent(tp);
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success || !data.data || data.data.length === 0) {
+            topics = [];
+            topicList.innerHTML = '<div class="empty-tip">暂无题目</div>';
+            topicDetail.innerHTML = '<div class="empty-tip">暂无题目</div>';
+            return;
+          }
+          topics = data.data;
+          renderTopicList();
+          selectTopic(topics[0]);
+        })
+        .catch(function() {
+          topicList.innerHTML = '<div class="empty-tip">加载失败</div>';
+        });
+    }
+
+    function renderTopicList() {
+      var html = '';
+      topics.forEach(function(t, i) {
+        var active = currentTopic && currentTopic.id === t.id ? 'active' : '';
+        var doneBadge = practicedSet[t.id] ? ' ✓' : '';
+        html += '<div class="list-item ' + active + '" data-idx="' + i + '">' +
+          '<div>' + escapeHtml(t.type) + doneBadge + '</div>' +
+          '<div class="item-sub">' + escapeHtml(String(t.prompt || '').slice(0, 50)) + '...</div>' +
+          '</div>';
+      });
+      topicList.innerHTML = html;
+      var items = topicList.querySelectorAll('.list-item');
+      items.forEach(function(item) {
+        item.addEventListener('click', function() {
+          var idx = Number(item.getAttribute('data-idx'));
+          selectTopic(topics[idx]);
+          renderTopicList();
+        });
+      });
+    }
+
+    function selectTopic(t) {
+      currentTopic = t;
+      var html = '';
+      html += '<div class="d-title">' + escapeHtml(t.type) + '</div>';
+      html += '<div class="d-meta">' +
+        '<span class="tag tag-module">' + escapeHtml(t.type) + '</span>' +
+        '</div>';
+
+      html += '<div class="d-section-title">📄 题目内容</div>';
+      html += '<div class="sample-box" style="background:#eef2ff;border-left-color:#4f46e5;">' + escapeHtml(t.prompt) + '</div>';
+
+      if (t.sample_outline) {
+        html += '<div class="collapsible" style="margin-top:18px;">' +
+          '<button class="collapse-toggle" id="outlineToggle">💡 查看参考思路 ▾</button>' +
+          '<div class="collapse-content" id="outlineContent">' +
+          '<div class="sample-box">' + formatOutline(t.sample_outline) + '</div>' +
+          '</div>' +
+          '</div>';
+      }
+
+      if (t.sample_essay) {
+        html += '<div class="collapsible" style="margin-top:12px;">' +
+          '<button class="collapse-toggle" id="essayToggle">📖 查看参考范文 ▾</button>' +
+          '<div class="collapse-content" id="essayContent">' +
+          '<div class="sample-box">' + escapeHtml(t.sample_essay) + '</div>' +
+          '</div>' +
+          '</div>';
+      }
+
+      html += '<div style="margin-top:24px;text-align:center;">' +
+        '<button class="btn-success" id="practiceBtn">✓ 我已练习</button>' +
+        '</div>';
+
+      html += '<div id="practiceLog" style="margin-top:16px;"></div>';
+
+      topicDetail.innerHTML = html;
+
+      var outlineToggle = document.getElementById('outlineToggle');
+      if (outlineToggle) {
+        outlineToggle.addEventListener('click', function() {
+          var content = document.getElementById('outlineContent');
+          content.classList.toggle('open');
+          outlineToggle.textContent = content.classList.contains('open') ? '💡 收起参考思路 ▴' : '💡 查看参考思路 ▾';
+        });
+      }
+      var essayToggle = document.getElementById('essayToggle');
+      if (essayToggle) {
+        essayToggle.addEventListener('click', function() {
+          var content = document.getElementById('essayContent');
+          content.classList.toggle('open');
+          essayToggle.textContent = content.classList.contains('open') ? '📖 收起参考范文 ▴' : '📖 查看参考范文 ▾';
+        });
+      }
+
+      var practiceBtn = document.getElementById('practiceBtn');
+      practiceBtn.addEventListener('click', function() {
+        practicedSet[t.id] = true;
+        renderTopicList();
+        showToast('已标记为已练习 ✓', 'success');
+        var log = document.getElementById('practiceLog');
+        log.innerHTML = '<div style="background:#d1fae5;color:#065f46;padding:10px;border-radius:6px;text-align:center;font-size:14px;">✅ 已标记练习 - ' + new Date().toLocaleString('zh-CN') + '</div>';
+      });
+    }
+
+    function formatOutline(outline) {
+      if (typeof outline === 'string') {
+        try {
+          var obj = JSON.parse(outline);
+          if (obj && typeof obj === 'object') {
+            var html = '';
+            for (var k in obj) {
+              if (obj.hasOwnProperty(k)) {
+                html += '<div style="margin-bottom:8px;"><strong>' + escapeHtml(k) + '：</strong>' + escapeHtml(obj[k]) + '</div>';
+              }
+            }
+            return html;
+          }
+        } catch (e) {}
+        return escapeHtml(outline);
+      }
+      if (outline && typeof outline === 'object') {
+        var html = '';
+        for (var k in outline) {
+          if (outline.hasOwnProperty(k)) {
+            html += '<div style="margin-bottom:8px;"><strong>' + escapeHtml(k) + '：</strong>' + escapeHtml(outline[k]) + '</div>';
+          }
+        }
+        return html;
+      }
+      return escapeHtml(String(outline || ''));
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+  </script>
+</body>
+</html>

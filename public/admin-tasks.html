@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务管理 - 管理员</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">⚙️ 任务管理（管理员）</div>
+      <div class="right-group">
+        <span class="admin-badge-red">管理员</span>
+        <span class="username" id="username">--</span>
+        <button class="logout-btn" id="logoutBtn">退出登录</button>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:24px;">
+      <div class="section-title">➕ 创建新任务</div>
+      <div class="form-layout">
+        <div class="form-field full">
+          <label>任务标题</label>
+          <input type="text" id="taskTitle" placeholder="例如：第1周单词背诵任务" />
+        </div>
+        <div class="form-field full">
+          <label>任务描述</label>
+          <textarea id="taskDesc" placeholder="简要描述任务内容和要求..."></textarea>
+        </div>
+        <div class="form-field">
+          <label>学习模块</label>
+          <select id="taskModule">
+            <option value="words">背单词</option>
+            <option value="questions">真题练习</option>
+            <option value="speaking">口语练习</option>
+            <option value="writing">写作练习</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>配置数量</label>
+          <input type="number" id="taskCount" placeholder="例如：20" value="20" min="1" />
+        </div>
+        <div class="form-field full" style="text-align:right;">
+          <button class="btn-primary" id="createTaskBtn">提交创建</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">📋 所有任务</div>
+      <div id="tasksList">
+        <div class="empty-tip">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var usernameEl = document.getElementById('username');
+    var logoutBtn = document.getElementById('logoutBtn');
+    var taskTitle = document.getElementById('taskTitle');
+    var taskDesc = document.getElementById('taskDesc');
+    var taskModule = document.getElementById('taskModule');
+    var taskCount = document.getElementById('taskCount');
+    var createTaskBtn = document.getElementById('createTaskBtn');
+    var tasksList = document.getElementById('tasksList');
+
+    function showToast(msg, type) {
+      var t = document.createElement('div');
+      t.className = 'toast toast-' + (type || 'info');
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 2500);
+    }
+
+    fetch('/api/me')
+      .then(function(r) {
+        if (!r.ok) { window.location.href = '/login.html'; return null; }
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data) return;
+        if (!data.loggedIn || data.role !== 'admin') {
+          window.location.href = '/learning.html';
+          return;
+        }
+        usernameEl.textContent = data.username;
+        loadTasks();
+      })
+      .catch(function() { window.location.href = '/login.html'; });
+
+    logoutBtn.addEventListener('click', function() {
+      fetch('/api/logout', { method: 'POST' })
+        .then(function() { window.location.href = '/login.html'; });
+    });
+
+    createTaskBtn.addEventListener('click', function() {
+      var title = taskTitle.value.trim();
+      var desc = taskDesc.value.trim();
+      var module = taskModule.value;
+      var count = Number(taskCount.value);
+      if (!title) {
+        showToast('请填写任务标题', 'error');
+        return;
+      }
+      if (!count || count <= 0) {
+        showToast('请填写有效的配置数量', 'error');
+        return;
+      }
+      var moduleMap = { words: '背单词', questions: '真题练习', speaking: '口语练习', writing: '写作练习' };
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title,
+          description: desc,
+          module: module,
+          config: { count: count, unit: moduleMap[module] }
+        })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.success) {
+          showToast('任务创建成功 ✓', 'success');
+          taskTitle.value = '';
+          taskDesc.value = '';
+          taskCount.value = '20';
+          loadTasks();
+        } else {
+          showToast(data.message || '创建失败', 'error');
+        }
+      })
+      .catch(function() { showToast('网络异常', 'error'); });
+    });
+
+    function loadTasks() {
+      fetch('/api/tasks')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success || !data.data || data.data.length === 0) {
+            tasksList.innerHTML = '<div class="empty-tip">暂无任务，请在上方创建</div>';
+            return;
+          }
+          renderTasks(data.data);
+        })
+        .catch(function() {
+          tasksList.innerHTML = '<div class="empty-tip">加载失败</div>';
+        });
+    }
+
+    function renderTasks(list) {
+      var moduleMap = { words: '背单词', questions: '真题练习', speaking: '口语练习', writing: '写作练习' };
+      var html = '';
+      list.forEach(function(task) {
+        var moduleText = moduleMap[task.module] || task.module;
+        var configText = '';
+        if (task.config && typeof task.config === 'object' && task.config.count) {
+          configText = ' · ' + task.config.count + ' 项';
+        } else if (typeof task.config === 'string') {
+          try {
+            var c = JSON.parse(task.config);
+            if (c && c.count) configText = ' · ' + c.count + ' 项';
+          } catch (e) {}
+        }
+        html += '<div class="admin-task-card" data-id="' + task.id + '">';
+        html += '<div class="at-title">' + escapeHtml(task.title) + '</div>';
+        html += '<div class="at-meta">' +
+          '<span class="tag tag-module">' + moduleText + '</span>' +
+          '<span style="color:#6b7280;">创建时间：' + formatDate(task.created_at) + configText + '</span>' +
+          '</div>';
+        if (task.description) {
+          html += '<div style="color:#4b5563;font-size:14px;margin-bottom:12px;line-height:1.6;">' + escapeHtml(task.description) + '</div>';
+        }
+        var assignments = task.assignments || [];
+        html += '<div class="assignments-list">' +
+          '<div style="font-weight:600;margin-bottom:8px;color:#374151;">📎 分配情况（' + assignments.length + ' 人）</div>';
+        if (assignments.length === 0) {
+          html += '<div style="color:#9ca3af;font-size:13px;">尚未分配给任何用户</div>';
+        } else {
+          assignments.forEach(function(a) {
+            var statusText = a.status === 'completed' ? '✅ 已完成' : '⏳ 进行中';
+            var scoreText = a.score ? (' · 得分 ' + a.score) : '';
+            html += '<div class="assignment-row">' +
+              '<span><strong>' + escapeHtml(a.username) + '</strong>' + scoreText + '</span>' +
+              '<span style="color:#059669;">' + statusText + '</span>' +
+              '</div>';
+          });
+        }
+        html += '<div class="assign-form">' +
+          '<input type="text" class="assign-input" placeholder="输入用户名分配..." />' +
+          '<button class="btn-primary btn-sm assign-btn">分配</button>' +
+          '<button class="btn-danger btn-sm delete-btn">删除任务</button>' +
+          '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      tasksList.innerHTML = html;
+
+      var cards = tasksList.querySelectorAll('.admin-task-card');
+      cards.forEach(function(card) {
+        var id = Number(card.getAttribute('data-id'));
+        var assignBtn = card.querySelector('.assign-btn');
+        var assignInput = card.querySelector('.assign-input');
+        var deleteBtn = card.querySelector('.delete-btn');
+
+        assignBtn.addEventListener('click', function() {
+          var name = assignInput.value.trim();
+          if (!name) { showToast('请输入用户名', 'error'); return; }
+          fetch('/api/tasks/' + id + '/assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: name })
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.success) {
+              showToast('已分配给 ' + name, 'success');
+              assignInput.value = '';
+              loadTasks();
+            } else {
+              showToast(data.message || '分配失败', 'error');
+            }
+          })
+          .catch(function() { showToast('网络异常', 'error'); });
+        });
+
+        deleteBtn.addEventListener('click', function() {
+          if (!confirm('确认删除此任务？')) return;
+          fetch('/api/tasks/' + id, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.success) {
+                showToast('任务已删除', 'success');
+                loadTasks();
+              } else {
+                showToast(data.message || '删除失败', 'error');
+              }
+            })
+            .catch(function() { showToast('网络异常', 'error'); });
+        });
+      });
+    }
+
+    function formatDate(d) {
+      if (!d) return '--';
+      var dt = new Date(d);
+      if (isNaN(dt.getTime())) return String(d);
+      return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) + ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+    }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+  </script>
+</body>
+</html>
