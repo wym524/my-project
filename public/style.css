@@ -1203,3 +1203,116 @@ body {
     padding: 20px;
   }
 }
+
+/* ========== 任务卡片样式 ========== */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.task-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-left: 4px solid #3b82f6;
+  transition: all 0.2s;
+}
+
+.task-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.task-card.task-done {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f9fafb 100%);
+}
+
+.task-card.task-pending {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #f9fafb 100%);
+}
+
+.task-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.task-desc {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 12px;
+}
+
+/* ========== 小按钮 ========== */
+.btn-small {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  display: inline-block;
+  width: auto;
+}
+
+/* ========== 空状态 & 加载状态 ========== */
+.empty-state {
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 30px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.loading-text {
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* ========== 管理员徽章红色版 ========== */
+.admin-badge-red {
+  display: inline-block;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+/* ========== 响应式调整 ========== */
+@media (max-width: 600px) {
+  .task-card {
+    padding: 16px;
+  }
+
+  .task-title {
+    font-size: 15px;
+  }
+
+  .task-meta {
+    font-size: 12px;
+    gap: 10px;
+  }
+}

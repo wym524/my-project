@@ -3,69 +3,138 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>欢迎使用</title>
+  <title>雅思学习空间</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <div class="topbar">
-      <div class="user-info">
-        <span>当前用户：<strong id="username">--</strong></span>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">📚 雅思学习空间</div>
+      <div class="right-group">
+        <span class="username" id="username">--</span>
+        <button class="logout-btn" id="logoutBtn">退出登录</button>
       </div>
-      <button id="logoutBtn" class="btn-secondary">退出登录</button>
     </div>
 
-    <div class="card">
-      <h1 class="title">欢迎使用</h1>
-      <p class="subtitle">您已成功登录，欢迎使用！</p>
+    <h2 class="page-title">学习模块</h2>
+    <p class="page-subtitle">选择一个模块开始你的学习</p>
 
-      <div class="welcome-card">
-        <h3>🎉 登录成功</h3>
-        <p>您已成功登录系统，感谢您的使用。</p>
-      </div>
+    <div class="module-grid">
+      <a class="module-card" href="words.html">
+        <div class="icon">📖</div>
+        <div class="mc-title">背单词</div>
+        <div class="mc-desc">分类学习雅思核心词汇，掌握高频单词</div>
+      </a>
+      <a class="module-card" href="questions.html">
+        <div class="icon">✏️</div>
+        <div class="mc-title">真题练习</div>
+        <div class="mc-desc">雅思真题实战训练，即时反馈答案</div>
+      </a>
+      <a class="module-card" href="speaking.html">
+        <div class="icon">🎤</div>
+        <div class="mc-title">口语练习</div>
+        <div class="mc-desc">Part1/Part2/Part3 全话题覆盖，含提示与参考</div>
+      </a>
+      <a class="module-card" href="writing.html">
+        <div class="icon">📝</div>
+        <div class="mc-title">写作练习</div>
+        <div class="mc-desc">大小作文题目，含思路分析与范文参考</div>
+      </a>
+    </div>
 
-      <div class="placeholder">
-        <h3>功能预告</h3>
-        <ul>
-          <li>个人信息管理功能（开发中）</li>
-          <li>数据统计与分析功能（开发中）</li>
-          <li>消息通知中心（开发中）</li>
-          <li>更多功能将逐步添加...</li>
-        </ul>
-        <p class="muted">我们会持续为您带来更好的体验。</p>
-      </div>
+    <h2 class="page-title" style="margin-top: 40px;">我的任务</h2>
+    <p class="page-subtitle">管理员分配给你的学习任务</p>
+    <div id="taskList" class="task-list">
+      <div class="loading-text">加载中...</div>
+    </div>
+
+    <h2 class="page-title" style="margin-top: 40px;">我的统计</h2>
+    <p class="page-subtitle">查看你的学习进度</p>
+    <div id="statsBox" class="stats-grid">
+      <div class="loading-text">加载中...</div>
     </div>
   </div>
 
   <script>
     const usernameEl = document.getElementById('username');
     const logoutBtn = document.getElementById('logoutBtn');
+    const taskList = document.getElementById('taskList');
+    const statsBox = document.getElementById('statsBox');
+
+    function parseTask(t) {
+      const moduleMap = { word: '背单词', question: '真题练习', speaking: '口语练习', writing: '写作练习' };
+      return { ...t, moduleName: moduleMap[t.module] || t.module };
+    }
 
     fetch('/api/me')
       .then(function(r) {
-        if (!r.ok) {
-          window.location.href = '/login.html';
-          return null;
-        }
+        if (!r.ok) { window.location.href = '/login.html'; return null; }
         return r.json();
       })
       .then(function(data) {
-        if (!data) return;
-        if (!data.loggedIn) {
-          window.location.href = '/login.html';
-          return;
-        }
+        if (!data || !data.loggedIn) { window.location.href = '/login.html'; return; }
         usernameEl.textContent = data.username;
-      })
-      .catch(function() {
-        window.location.href = '/login.html';
+        loadTasks();
+        loadStats();
       });
+
+    function loadTasks() {
+      fetch('/api/tasks')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data || !data.data || data.data.length === 0) {
+            taskList.innerHTML = '<div class="empty-state">暂无任务</div>';
+            return;
+          }
+          taskList.innerHTML = data.data.map(t => {
+            const moduleMap = { word: '背单词', words: '背单词', question: '真题练习', questions: '真题练习', speaking: '口语练习', writing: '写作练习' };
+            const isDone = t.status === 'completed';
+            return `<div class="task-card ${isDone ? 'task-done' : 'task-pending'}">
+              <div class="task-title">${t.title}</div>
+              <div class="task-desc">${t.description || ''}</div>
+              <div class="task-meta">
+                <span>📚 ${moduleMap[t.module] || t.module}</span>
+                <span>📅 ${t.created_at ? t.created_at.split('T')[0] : ''}</span>
+                <span>状态: ${isDone ? '✅ 已完成' : '⏳ 待完成'}</span>
+                ${t.score ? `<span>得分: ${t.score}</span>` : ''}
+              </div>
+              ${!isDone ? `<button class="btn-primary btn-small" onclick="completeTask(${t.id})">标记完成</button>` : ''}
+            </div>`;
+          }).join('');
+        });
+    }
+
+    function loadStats() {
+      fetch('/api/stats')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data || !data.data) return;
+          const d = data.data;
+          const rate = d.answeredQuestions > 0 ? Math.round((d.correctQuestions / d.answeredQuestions) * 100) : 0;
+          statsBox.innerHTML = `
+            <div class="stat-card"><div class="num">${d.totalTasks || 0}</div><div class="label">总任务数</div></div>
+            <div class="stat-card"><div class="num">${d.completedTasks || 0}</div><div class="label">已完成任务</div></div>
+            <div class="stat-card"><div class="num">${d.knownWords || 0}</div><div class="label">已掌握单词</div></div>
+            <div class="stat-card"><div class="num">${d.answeredQuestions || 0}</div><div class="label">完成题目</div></div>
+            <div class="stat-card"><div class="num">${rate}%</div><div class="label">正确率</div></div>
+          `;
+        });
+    }
+
+    window.completeTask = function(id) {
+      fetch('/api/tasks/' + id + '/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(r => r.json())
+        .then(d => {
+          if (d.success || d.message) {
+            loadTasks();
+            loadStats();
+          }
+        });
+    };
 
     logoutBtn.addEventListener('click', function() {
       fetch('/api/logout', { method: 'POST' })
-        .then(function() {
-          window.location.href = '/login.html';
-        });
+        .then(function() { window.location.href = '/login.html'; });
     });
   </script>
 </body>
