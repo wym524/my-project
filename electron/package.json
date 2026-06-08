@@ -28,7 +28,7 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"]
+        { "target": "nsis", "arch": ["x64"] }
       ],
       "artifactName": "雅思学习空间-Setup-${version}.${ext}",
       "icon": "assets/icon.png"
