@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的练习卷 - 雅思学习空间</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">📚 雅思学习空间</div>
+      <div class="right-group">
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 12px;"><a id="backBtn" href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
+    <h1 class="page-title">📝 我的练习卷</h1>
+    <p class="page-subtitle">这里是管理员为你出的专属练习卷</p>
+
+    <div id="quizListContainer" style="margin-top:20px;"></div>
+    <div id="quizDetailContainer" style="display:none; margin-top:20px;"></div>
+  </div>
+
+  <script>
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
+
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        loadQuizList();
+      }).catch(() => { window.location.href = 'login.html'; });
+    }
+
+    let currentQuiz = null;
+    let currentItems = [];
+
+    function loadQuizList() {
+      fetch('/api/my-quizzes').then(r => r.json()).then(res => {
+        if (!res.success || !res.data) {
+          document.getElementById('quizListContainer').innerHTML = '<div style="padding:30px; background:#f3f4f6; border-radius:12px; text-align:center; color:#6b7280;">加载失败</div>';
+          return;
+        }
+        const quizzes = res.data;
+        if (quizzes.length === 0) {
+          document.getElementById('quizListContainer').innerHTML = '<div style="padding:40px; background:linear-gradient(135deg,#e0f2fe,#f5f7fa); border-radius:12px; text-align:center; color:#374151; font-size:15px;">📭 暂无练习卷<br><span style="font-size:13px; color:#6b7280;">管理员还没有为你出练习卷，请耐心等待～</span></div>';
+          return;
+        }
+        const html = `
+          <div style="display:grid; gap:16px;">
+            ${quizzes.map(q => {
+              const answered = q.my_answers > 0;
+              return `
+                <div onclick="openQuiz(${q.id})" style="cursor:pointer; background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 12px rgba(0,0,0,0.05); border-left:4px solid ${answered ? '#10b981' : '#7c3aed'};">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                    <div style="flex:1;">
+                      <div style="font-size:17px; font-weight:700; color:#1f2937; margin-bottom:6px;">${escapeHtml(q.title)}</div>
+                      <div style="font-size:13px; color:#6b7280; margin-bottom:8px;">📝 ${q.total_items || 0} 道题 · 👤 目标用户: ${escapeHtml(q.target_username || '通用')}</div>
+                      <div style="font-size:12px; color:#6b7280;">创建时间: ${(q.created_at || '').slice(0, 16)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <span style="padding:4px 10px; background:${answered ? '#dcfce7' : '#ede9fe'}; color:${answered ? '#065f46' : '#7c3aed'}; border-radius:6px; font-size:12px; font-weight:600;">
+                        ${answered ? '✓ 已完成' : '⏳ 待答题'}
+                      </span>
+                      <div style="margin-top:8px; font-size:13px; color:#2563eb; font-weight:600;">进入答题 →</div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        document.getElementById('quizListContainer').innerHTML = html;
+      });
+    }
+
+    function openQuiz(quizId) {
+      fetch('/api/my-quizzes/' + quizId).then(r => r.json()).then(res => {
+        if (!res.success) { alert(res.message || '加载失败'); return; }
+        currentQuiz = res.quiz;
+        currentItems = res.items || [];
+        renderQuizDetail();
+      });
+    }
+
+    function renderQuizDetail() {
+      document.getElementById('quizListContainer').style.display = 'none';
+      const container = document.getElementById('quizDetailContainer');
+      container.style.display = 'block';
+      const words = currentItems.filter(i => i.item_type === 'word');
+      const questions = currentItems.filter(i => i.item_type === 'question');
+      let contentHtml = `
+        <div style="background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 12px rgba(0,0,0,0.05); margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+            <div>
+              <h2 style="font-size:20px; color:#1f2937; margin-bottom:6px;">${escapeHtml(currentQuiz.title)}</h2>
+              <div style="font-size:13px; color:#6b7280;">📖 ${words.length} 个单词 · ❓ ${questions.length} 道题目</div>
+            </div>
+            <button onclick="backToList()" style="padding:8px 16px; background:#f3f4f6; color:#374151; border:none; border-radius:6px; cursor:pointer; font-size:13px;">← 返回列表</button>
+          </div>
+        </div>
+      `;
+
+      if (words.length > 0) {
+        contentHtml += `
+          <div style="background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 12px rgba(0,0,0,0.05); margin-bottom:20px;">
+            <h3 style="font-size:16px; color:#1f2937; margin-bottom:16px;">📖 单词部分（共 ${words.length} 个）</h3>
+            <div style="font-size:13px; color:#6b7280; margin-bottom:16px;">根据中文释义，在输入框中填写对应的英文单词</div>
+            ${words.map((w, idx) => {
+              try {
+                const c = JSON.parse(w.content);
+                return `
+                  <div style="padding:16px; background:#f9fafb; border-radius:8px; margin-bottom:12px;">
+                    <div style="font-size:14px; color:#374151; margin-bottom:8px;"><span style="font-weight:700; color:#2563eb;">第 ${idx + 1} 题.</span> 中文释义：<span style="font-weight:600; color:#1f2937;">${escapeHtml(c.meaning || '')}</span></div>
+                    ${c.example ? `<div style="font-size:12px; color:#6b7280; font-style:italic; margin-bottom:8px;">提示：${escapeHtml(c.example)}</div>` : ''}
+                    <input type="text" id="word-${w.id}" placeholder="请输入英文单词..." style="width:100%; padding:10px 14px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px;">
+                  </div>
+                `;
+              } catch (e) { return ''; }
+            }).join('')}
+          </div>
+        `;
+      }
+
+      if (questions.length > 0) {
+        contentHtml += `
+          <div style="background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 12px rgba(0,0,0,0.05); margin-bottom:20px;">
+            <h3 style="font-size:16px; color:#1f2937; margin-bottom:16px;">❓ 选择题（共 ${questions.length} 道）</h3>
+            ${questions.map((q, idx) => {
+              try {
+                const c = JSON.parse(q.content);
+                const options = typeof c.options === 'string' ? JSON.parse(c.options || '[]') : (c.options || []);
+                return `
+                  <div style="padding:16px; background:#f9fafb; border-radius:8px; margin-bottom:12px;">
+                    <div style="font-size:14px; color:#1f2937; font-weight:600; margin-bottom:12px;">第 ${idx + 1} 题. ${escapeHtml(c.prompt || '')}</div>
+                    ${options.map((opt, oi) => `
+                      <label style="display:block; padding:8px 12px; background:#fff; border-radius:6px; margin-bottom:6px; cursor:pointer; border:1.5px solid #e5e7eb;">
+                        <input type="radio" name="q-${q.id}" value="${String.fromCharCode(65 + oi)}" style="margin-right:8px;">
+                        <strong style="color:#2563eb;">${String.fromCharCode(65 + oi)}.</strong>
+                        <span style="color:#374151;">${escapeHtml(opt)}</span>
+                      </label>
+                    `).join('')}
+                  </div>
+                `;
+              } catch (e) { return ''; }
+            }).join('')}
+          </div>
+        `;
+      }
+
+      contentHtml += `
+        <div style="text-align:center; padding:20px;">
+          <button onclick="submitQuiz()" id="submitBtn" style="padding:14px 40px; background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; border:none; border-radius:10px; font-size:16px; font-weight:700; cursor:pointer;">📤 提交答题</button>
+        </div>
+        <div id="quizResult" style="margin-top:20px;"></div>
+      `;
+      container.innerHTML = contentHtml;
+      container.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function backToList() {
+      document.getElementById('quizDetailContainer').style.display = 'none';
+      document.getElementById('quizListContainer').style.display = 'block';
+      currentQuiz = null;
+      currentItems = [];
+    }
+
+    function submitQuiz() {
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ 提交中...';
+      const words = currentItems.filter(i => i.item_type === 'word');
+      const questions = currentItems.filter(i => i.item_type === 'question');
+      const answers = [];
+      for (const w of words) {
+        const el = document.getElementById('word-' + w.id);
+        if (el) {
+          let correct = 0;
+          try {
+            const c = JSON.parse(w.content);
+            const userAns = el.value.trim().toLowerCase();
+            const real = (c.word || '').toLowerCase();
+            if (userAns && userAns === real) correct = 1;
+          } catch (e) {}
+          answers.push({ item_id: w.id, answer: el.value, correct });
+        }
+      }
+      for (const q of questions) {
+        const selected = document.querySelector('input[name="q-' + q.id + '"]:checked');
+        const userAns = selected ? selected.value : '';
+        let correct = 0;
+        try {
+          const c = JSON.parse(q.content);
+          const real = String(c.answer || '').trim().toUpperCase();
+          if (userAns && userAns.toUpperCase() === real) correct = 1;
+        } catch (e) {}
+        answers.push({ item_id: q.id, answer: userAns, correct });
+      }
+      fetch('/api/my-quizzes/' + currentQuiz.id + '/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          const wordsCore = answers.filter(a => {
+            const item = currentItems.find(i => i.id === a.item_id);
+            return item && item.item_type === 'word' && a.correct;
+          }).length;
+          const totalScore = wordsCore + (res.score || 0);
+          const gradedTotal = words.length + (res.total || questions.length);
+          document.getElementById('quizResult').innerHTML = `
+            <div style="padding:30px; background:linear-gradient(135deg,#dcfce7,#e0f2fe); border-radius:16px; text-align:center;">
+              <div style="font-size:60px; margin-bottom:12px;">🎉</div>
+              <div style="font-size:22px; font-weight:700; color:#1f2937; margin-bottom:8px;">答题完成！</div>
+              <div style="font-size:18px; color:#2563eb; font-weight:700; margin-bottom:12px;">得分：${totalScore} / ${gradedTotal}</div>
+              <div style="font-size:14px; color:#374151; margin-bottom:16px;">📖 单词 ${wordsCore}/${words.length} · ❓ 选择 ${res.score || 0}/${questions.length}</div>
+              <div style="font-size:13px; color:#6b7280; margin-bottom:16px;">${escapeHtml(res.message || '')}</div>
+              <button onclick="backToList()" style="padding:10px 20px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">← 返回练习卷列表</button>
+            </div>
+          `;
+          document.getElementById('quizResult').scrollIntoView({ behavior: 'smooth' });
+        } else {
+          alert(res.message || '提交失败');
+          btn.disabled = false;
+          btn.textContent = '📤 提交答题';
+        }
+      }).catch(() => {
+        alert('网络错误');
+        btn.disabled = false;
+        btn.textContent = '📤 提交答题';
+      });
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>

@@ -1526,6 +1526,11 @@ body {
   color: #9d174d;
 }
 
+.mc-tag-orange {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
 .mc-action {
   font-size: 12.5px;
   color: #64748b;

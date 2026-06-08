@@ -119,6 +119,26 @@
           <span class="mc-action">进入查看 →</span>
         </div>
       </div>
+
+      <a href="javascript:void(0)" onclick="openUserView()" class="module-card module-card-plus" style="text-decoration:none; cursor:pointer;">
+        <div class="mc-icon">📊</div>
+        <div class="mc-title-lg">用户学习数据</div>
+        <div class="mc-desc-lg">查看每位用户的已掌握单词、答题记录、打卡情况</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-orange">数据可视化</span>
+          <span class="mc-action">进入查看 →</span>
+        </div>
+      </a>
+
+      <a href="javascript:void(0)" onclick="openQuizGen()" class="module-card module-card-plus" style="text-decoration:none; cursor:pointer;">
+        <div class="mc-icon">🎯</div>
+        <div class="mc-title-lg">智能出题</div>
+        <div class="mc-desc-lg">根据用户已掌握内容自动生成练习卷</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-orange">AI 辅助</span>
+          <span class="mc-action">开始出题 →</span>
+        </div>
+      </a>
     </div>
 
     <div style="margin-top:40px;">
@@ -143,6 +163,62 @@
 
         <div id="batchResult" style="margin-top:16px;"></div>
       </div>
+    </div>
+
+    <div id="userViewPanel" style="display:none; margin-top:20px; background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 12px rgba(0,0,0,0.05);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="font-size:20px; color:#1f2937; margin-bottom:4px;">📊 用户学习数据</h2>
+          <div style="font-size:13px; color:#6b7280;">选择一位用户查看其详细学习记录</div>
+        </div>
+        <button onclick="closePanels()" style="padding:8px 16px; background:#f3f4f6; color:#374151; border:none; border-radius:6px; cursor:pointer; font-size:13px;">← 返回主页</button>
+      </div>
+
+      <div id="userListArea" style="margin-bottom:20px;"></div>
+      <div id="userDetailArea" style="display:none;"></div>
+    </div>
+
+    <div id="quizGenPanel" style="display:none; margin-top:20px; background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 12px rgba(0,0,0,0.05);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="font-size:20px; color:#1f2937; margin-bottom:4px;">🎯 智能出题</h2>
+          <div style="font-size:13px; color:#6b7280;">根据用户已掌握内容自动生成练习卷</div>
+        </div>
+        <button onclick="closePanels()" style="padding:8px 16px; background:#f3f4f6; color:#374151; border:none; border-radius:6px; cursor:pointer; font-size:13px;">← 返回主页</button>
+      </div>
+
+      <div style="display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); margin-bottom:16px;">
+        <div>
+          <label style="font-size:13px; color:#374151; font-weight:600; display:block; margin-bottom:6px;">📋 目标用户</label>
+          <select id="quizTargetUser" style="width:100%; padding:10px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px;"></select>
+        </div>
+        <div>
+          <label style="font-size:13px; color:#374151; font-weight:600; display:block; margin-bottom:6px;">🎨 出题模式</label>
+          <select id="quizMode" style="width:100%; padding:10px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px;">
+            <option value="mixed">综合复习（推荐）</option>
+            <option value="review">巩固已掌握</option>
+            <option value="weak">查漏补缺</option>
+            <option value="ai">AI 智能出题</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:13px; color:#374151; font-weight:600; display:block; margin-bottom:6px;">📝 单词数量</label>
+          <input type="number" id="quizWordCount" value="10" min="1" max="50" style="width:100%; padding:10px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px;">
+        </div>
+        <div>
+          <label style="font-size:13px; color:#374151; font-weight:600; display:block; margin-bottom:6px;">❓ 题目数量</label>
+          <input type="number" id="quizQCount" value="5" min="1" max="30" style="width:100%; padding:10px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px;">
+        </div>
+        <div>
+          <label style="font-size:13px; color:#374151; font-weight:600; display:block; margin-bottom:6px;">📌 卷子标题（可选）</label>
+          <input type="text" id="quizTitle" placeholder="留空则自动命名" style="width:100%; padding:10px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px;">
+        </div>
+      </div>
+
+      <button onclick="generateQuiz()" id="genQuizBtn" style="padding:12px 24px; background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer;">🚀 生成练习卷</button>
+
+      <div id="quizResultArea" style="margin-top:20px;"></div>
+      <div id="quizListArea" style="margin-top:20px;"></div>
     </div>
   </div>
 
@@ -234,6 +310,284 @@
       t.textContent = msg;
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 2500);
+    }
+
+    // ====== 面板切换 ======
+    function closePanels() {
+      document.getElementById('userViewPanel').style.display = 'none';
+      document.getElementById('quizGenPanel').style.display = 'none';
+    }
+
+    function openUserView() {
+      closePanels();
+      document.getElementById('userViewPanel').style.display = 'block';
+      loadUsers();
+      document.getElementById('userViewPanel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function openQuizGen() {
+      closePanels();
+      document.getElementById('quizGenPanel').style.display = 'block';
+      loadQuizTargetUsers();
+      loadQuizList();
+      document.getElementById('quizGenPanel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ====== 用户列表与详情 ======
+    function loadUsers() {
+      fetch('/api/admin/users').then(r => r.json()).then(res => {
+        if (!res.success || !res.data) {
+          document.getElementById('userListArea').innerHTML = '<div style="color:#991b1b;">加载失败</div>';
+          return;
+        }
+        const users = res.data.filter(u => u.role !== 'admin');
+        const html = `
+          <div style="overflow-x:auto; border-radius:10px; border:1px solid #e5e7eb;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead style="background:#f3f4f6;">
+                <tr>
+                  <th style="padding:10px 14px; text-align:left;">用户名</th>
+                  <th style="padding:10px 14px; text-align:left;">注册时间</th>
+                  <th style="padding:10px 14px; text-align:center;">已掌握单词</th>
+                  <th style="padding:10px 14px; text-align:center;">答题数</th>
+                  <th style="padding:10px 14px; text-align:center;">打卡</th>
+                  <th style="padding:10px 14px; text-align:center;">学习会话</th>
+                  <th style="padding:10px 14px; text-align:center;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${users.length === 0 ? '<tr><td colspan="6" style="padding:20px; text-align:center; color:#6b7280;">暂无用户数据</td></tr>' :
+                users.map(u => `
+                  <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:10px 14px; font-weight:600; color:#1f2937;">${escapeHtml(u.username)}</td>
+                    <td style="padding:10px 14px; color:#6b7280; font-size:12px;">${u.created_at ? u.created_at.slice(0,10) : '-'}</td>
+                    <td style="padding:10px 14px; text-align:center; color:#065f46; font-weight:600;">${u.known_words || 0}</td>
+                    <td style="padding:10px 14px; text-align:center;">${u.answered || 0}</td>
+                    <td style="padding:10px 14px; text-align:center;">${u.checkins || 0}</td>
+                    <td style="padding:10px 14px; text-align:center;">${u.sessions || 0}</td>
+                    <td style="padding:10px 14px; text-align:center;">
+                      <button onclick="viewUserDetail('${escapeHtml(u.username)}')" style="padding:6px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:12px;">查看详情</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+        document.getElementById('userListArea').innerHTML = html;
+      });
+    }
+
+    function viewUserDetail(username) {
+      fetch('/api/admin/users/' + encodeURIComponent(username) + '/detail').then(r => r.json()).then(res => {
+        if (!res.success || !res.data) {
+          document.getElementById('userDetailArea').innerHTML = '<div style="color:#991b1b;">加载失败</div>';
+          return;
+        }
+        const d = res.data;
+        const wordHtml = d.knownWords.length === 0 ? '<div style="padding:16px; color:#6b7280; text-align:center;">暂无已掌握单词</div>' : `
+          <div style="max-height:300px; overflow-y:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead style="background:#f3f4f6; position:sticky; top:0;">
+                <tr>
+                  <th style="padding:8px 12px; text-align:left;">单词</th>
+                  <th style="padding:8px 12px; text-align:left;">释义</th>
+                  <th style="padding:8px 12px; text-align:left;">分类</th>
+                  <th style="padding:8px 12px; text-align:left;">掌握时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${d.knownWords.map(w => `
+                  <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px 12px; font-weight:600; color:#1e40af;">${escapeHtml(w.word || '')}</td>
+                    <td style="padding:8px 12px; color:#374151;">${escapeHtml(w.meaning || '')}</td>
+                    <td style="padding:8px 12px; color:#6b7280; font-size:12px;">${escapeHtml(w.category || '-')}</td>
+                    <td style="padding:8px 12px; color:#6b7280; font-size:12px;">${(w.reviewed_at || '').slice(0, 16)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+        const progressHtml = d.progress.length === 0 ? '<div style="padding:16px; color:#6b7280; text-align:center;">暂无答题记录</div>' : `
+          <div style="max-height:300px; overflow-y:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead style="background:#f3f4f6; position:sticky; top:0;">
+                <tr>
+                  <th style="padding:8px 12px; text-align:left;">类型</th>
+                  <th style="padding:8px 12px; text-align:left;">内容</th>
+                  <th style="padding:8px 12px; text-align:center;">结果</th>
+                  <th style="padding:8px 12px; text-align:left;">时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${d.progress.map(p => `
+                  <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px 12px; font-size:12px; color:#2563eb;">${escapeHtml(p.module || '')}</td>
+                    <td style="padding:8px 12px; color:#374151; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.title || '-')}</td>
+                    <td style="padding:8px 12px; text-align:center; color:${p.correct ? '#065f46' : '#991b1b'}; font-weight:600;">${p.correct ? '✓' : '✗'}</td>
+                    <td style="padding:8px 12px; color:#6b7280; font-size:12px;">${(p.created_at || '').slice(0, 16)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+        const checkinHtml = d.checkins.length === 0 ? '<div style="padding:16px; color:#6b7280; text-align:center;">暂无打卡记录</div>' : `
+          <div style="display:flex; gap:6px; flex-wrap:wrap; padding:8px;">
+            ${d.checkins.map(c => `<div style="padding:6px 10px; background:#dcfce7; color:#065f46; border-radius:6px; font-size:12px; font-weight:600;">${c.date}</div>`).join('')}
+          </div>
+        `;
+        const detailHtml = `
+          <div style="margin-top:16px; border-top:1px solid #e5e7eb; padding-top:20px;">
+            <h3 style="font-size:17px; color:#1f2937; margin-bottom:12px;">👤 ${escapeHtml(username)} 的学习详情</h3>
+            <div style="display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:20px;">
+              <div style="padding:16px; background:#f0f9ff; border-radius:10px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#0369a1;">${d.stats.total_known || 0}</div>
+                <div style="font-size:12px; color:#6b7280; margin-top:4px;">已掌握单词</div>
+              </div>
+              <div style="padding:16px; background:#fef3c7; border-radius:10px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#92400e;">${d.stats.total_progress || 0}</div>
+                <div style="font-size:12px; color:#6b7280; margin-top:4px;">答题次数</div>
+              </div>
+              <div style="padding:16px; background:#dcfce7; border-radius:10px; text-align:center;">
+                <div style="font-size:24px; font-weight:700; color:#065f46;">${d.stats.total_checkins || 0}</div>
+                <div style="font-size:12px; color:#6b7280; margin-top:4px;">打卡天数</div>
+              </div>
+            </div>
+
+            <div style="margin-bottom:20px;">
+              <h4 style="font-size:14px; color:#1f2937; margin-bottom:10px;">📖 已掌握单词 (${d.knownWords.length})</h4>
+              ${wordHtml}
+            </div>
+
+            <div style="margin-bottom:20px;">
+              <h4 style="font-size:14px; color:#1f2937; margin-bottom:10px;">📝 答题记录 (${d.progress.length})</h4>
+              ${progressHtml}
+            </div>
+
+            <div style="margin-bottom:20px;">
+              <h4 style="font-size:14px; color:#1f2937; margin-bottom:10px;">📅 打卡日期 (${d.checkins.length})</h4>
+              ${checkinHtml}
+            </div>
+
+            <button onclick="generateQuizForUser('${escapeHtml(username)}')" style="padding:10px 18px; background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">🎯 为该用户出一份练习卷</button>
+          </div>
+        `;
+        const area = document.getElementById('userDetailArea');
+        area.innerHTML = detailHtml;
+        area.style.display = 'block';
+        area.scrollIntoView({ behavior: 'smooth' });
+      });
+    }
+
+    function generateQuizForUser(username) {
+      openQuizGen();
+      document.getElementById('quizTargetUser').value = username;
+      setTimeout(() => {
+        document.getElementById('quizGenPanel').scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+
+    // ====== 智能出题 ======
+    function loadQuizTargetUsers() {
+      fetch('/api/admin/users').then(r => r.json()).then(res => {
+        if (!res.success || !res.data) return;
+        const users = res.data.filter(u => u.role !== 'admin');
+        const sel = document.getElementById('quizTargetUser');
+        sel.innerHTML = users.length === 0 ? '<option value="">(暂无用户)</option>' : users.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)}</option>`).join('');
+      });
+    }
+
+    function generateQuiz() {
+      const username = document.getElementById('quizTargetUser').value;
+      const mode = document.getElementById('quizMode').value;
+      const wordCount = Number(document.getElementById('quizWordCount').value) || 10;
+      const qCount = Number(document.getElementById('quizQCount').value) || 5;
+      const title = document.getElementById('quizTitle').value.trim();
+      if (!username) { alert('请选择目标用户'); return; }
+      const btn = document.getElementById('genQuizBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ 生成中...';
+      fetch('/api/admin/quizzes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, mode, wordCount, questionCount: qCount, title })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          const items = res.items || [];
+          const words = items.filter(i => i.item_type === 'word');
+          const questions = items.filter(i => i.item_type === 'question');
+          document.getElementById('quizResultArea').innerHTML = `
+            <div style="padding:20px; background:#dcfce7; border-radius:12px; color:#065f46;">
+              <div style="font-size:17px; font-weight:700; margin-bottom:8px;">✅ 练习卷生成成功！</div>
+              <div style="font-size:14px; margin-bottom:8px;">${escapeHtml(res.quiz.title)}</div>
+              <div style="font-size:13px; color:#374151;">📖 ${words.length} 个单词 / ❓ ${questions.length} 道题目 ${res.generatedByAI ? ' (AI 生成)' : ''}</div>
+            </div>
+          `;
+          loadQuizList();
+        } else {
+          document.getElementById('quizResultArea').innerHTML = `<div style="padding:16px; background:#fef2f2; border-radius:12px; color:#991b1b;">❌ ${escapeHtml(res.message || '生成失败')}</div>`;
+        }
+      }).catch(() => {
+        document.getElementById('quizResultArea').innerHTML = '<div style="padding:16px; background:#fef2f2; border-radius:12px; color:#991b1b;">❌ 网络错误</div>';
+      }).finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🚀 生成练习卷';
+      });
+    }
+
+    function loadQuizList() {
+      fetch('/api/admin/quizzes').then(r => r.json()).then(res => {
+        if (!res.success || !res.data) {
+          document.getElementById('quizListArea').innerHTML = '';
+          return;
+        }
+        const quizzes = res.data;
+        const html = `
+          <h3 style="font-size:15px; color:#1f2937; margin-bottom:12px; margin-top:16px;">📋 已生成的练习卷 (${quizzes.length})</h3>
+          <div style="overflow-x:auto; border-radius:10px; border:1px solid #e5e7eb;">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead style="background:#f3f4f6;">
+                <tr>
+                  <th style="padding:10px 14px; text-align:left;">ID</th>
+                  <th style="padding:10px 14px; text-align:left;">标题</th>
+                  <th style="padding:10px 14px; text-align:left;">目标用户</th>
+                  <th style="padding:10px 14px; text-align:center;">题目数</th>
+                  <th style="padding:10px 14px; text-align:center;">完成人数</th>
+                  <th style="padding:10px 14px; text-align:left;">创建时间</th>
+                  <th style="padding:10px 14px; text-align:center;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${quizzes.length === 0 ? '<tr><td colspan="7" style="padding:20px; text-align:center; color:#6b7280;">暂无练习卷</td></tr>' :
+                quizzes.map(q => `
+                  <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:10px 14px; color:#6b7280;">#${q.id}</td>
+                    <td style="padding:10px 14px; font-weight:600; color:#1f2937;">${escapeHtml(q.title || '-')}</td>
+                    <td style="padding:10px 14px; color:#2563eb;">${escapeHtml(q.target_username || '-')}</td>
+                    <td style="padding:10px 14px; text-align:center;">${q.total_items || 0}</td>
+                    <td style="padding:10px 14px; text-align:center;">${q.completed_by || 0}</td>
+                    <td style="padding:10px 14px; color:#6b7280; font-size:12px;">${(q.created_at || '').slice(0, 16)}</td>
+                    <td style="padding:10px 14px; text-align:center;">
+                      <button onclick="deleteQuiz(${q.id})" style="padding:4px 10px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; cursor:pointer; font-size:12px;">删除</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+        document.getElementById('quizListArea').innerHTML = html;
+      });
+    }
+
+    function deleteQuiz(id) {
+      if (!confirm('确认删除该练习卷？')) return;
+      fetch('/api/admin/quizzes/' + id, { method: 'DELETE' }).then(r => r.json()).then(res => {
+        if (res.success) { loadQuizList(); alert('删除成功'); }
+        else alert(res.message || '删除失败');
+      });
     }
 
     checkAuth();

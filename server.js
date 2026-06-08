@@ -176,6 +176,47 @@ db.exec(`
   );
 `);
 
+// quizzes 管理员出的卷子
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quizzes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id INTEGER,
+    title TEXT NOT NULL,
+    target_username TEXT,
+    description TEXT,
+    total_words INTEGER DEFAULT 0,
+    total_questions INTEGER DEFAULT 0,
+    config TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// quiz_items 卷子包含的题目/单词
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quiz_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quiz_id INTEGER NOT NULL,
+    item_type TEXT NOT NULL,
+    source_id INTEGER NOT NULL,
+    content TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// quiz_answers 用户答题记录
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quiz_answers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quiz_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    item_id INTEGER NOT NULL,
+    user_answer TEXT,
+    correct INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 // ---------- 管理员账号初始化 ----------
 const adminUsername = '001';
 const adminPassword = '141242';
@@ -1594,6 +1635,230 @@ app.post('/api/ai/generate-questions', async (req, res) => {
   } catch (e) {
     return res.status(500).json({ success: false, message: '解析失败: ' + e.message });
   }
+});
+
+// ---------- 管理员：用户列表与学习数据 ----------
+app.get('/api/admin/users', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const users = db.prepare(`
+    SELECT u.id, u.username, u.role, u.created_at,
+      (SELECT COUNT(*) FROM user_words uw WHERE uw.username = u.username AND uw.known = 1) AS known_words,
+      (SELECT COUNT(*) FROM user_progress up WHERE up.username = u.username) AS answered,
+      (SELECT COUNT(*) FROM daily_checkins dc WHERE dc.username = u.username) AS checkins,
+      (SELECT COUNT(*) FROM study_sessions ss WHERE ss.username = u.username) AS sessions
+    FROM users u
+    ORDER BY u.created_at DESC
+  `).all();
+  return res.json({ success: true, data: users });
+});
+
+app.get('/api/admin/users/:username/detail', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const username = req.params.username;
+  const knownWords = db.prepare(`
+    SELECT uw.id, uw.word_id, uw.known, uw.reviewed_at, w.word, w.meaning, w.category
+    FROM user_words uw LEFT JOIN words w ON w.id = uw.word_id
+    WHERE uw.username = ? AND uw.known = 1
+    ORDER BY uw.reviewed_at DESC
+  `).all(username);
+  const progress = db.prepare(`
+    SELECT up.id, up.module, up.item_id, up.correct, up.created_at,
+      CASE up.module
+        WHEN 'question' THEN q.prompt
+        WHEN 'speaking' THEN s.topic
+        WHEN 'writing' THEN wt.prompt
+        ELSE ''
+      END AS title
+    FROM user_progress up
+    LEFT JOIN questions q ON up.module = 'question' AND q.id = up.item_id
+    LEFT JOIN speaking_topics s ON up.module = 'speaking' AND s.id = up.item_id
+    LEFT JOIN writing_topics wt ON up.module = 'writing' AND wt.id = up.item_id
+    WHERE up.username = ?
+    ORDER BY up.created_at DESC LIMIT 50
+  `).all(username);
+  const checkins = db.prepare('SELECT date FROM daily_checkins WHERE username = ? ORDER BY date DESC LIMIT 30').all(username);
+  const stats = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM user_words WHERE username = ? AND known = 1) AS total_known,
+      (SELECT COUNT(*) FROM user_progress WHERE username = ?) AS total_progress,
+      (SELECT COUNT(*) FROM daily_checkins WHERE username = ?) AS total_checkins
+  `).get(username, username, username);
+  return res.json({ success: true, data: { knownWords, progress, checkins, stats } });
+});
+
+// ---------- 管理员：智能出题 ----------
+app.post('/api/admin/quizzes/generate', async (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const { username, title, mode = 'mixed', wordCount = 10, questionCount = 5 } = req.body || {};
+  if (!username) return res.status(400).json({ success: false, message: '请选择目标用户' });
+  const targetUser = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (!targetUser) return res.status(404).json({ success: false, message: '用户不存在' });
+  const actualTitle = title || (username + ' 的智能练习卷 ' + new Date().toLocaleString('zh-CN'));
+
+  let wordItems = [];
+  let questionItems = [];
+  let generatedByAI = false;
+
+  // 模式 1：基于用户已掌握内容，反出相关题目（巩固模式）
+  if (mode === 'review' || mode === 'mixed') {
+    const knownIds = db.prepare('SELECT word_id FROM user_words WHERE username = ? AND known = 1 ORDER BY reviewed_at DESC LIMIT ?').all(username, wordCount * 2);
+    if (knownIds && knownIds.length > 0) {
+      const placeholders = knownIds.map(() => '?').join(',');
+      wordItems = db.prepare(`SELECT id, word, meaning, example, category FROM words WHERE id IN (${placeholders}) ORDER BY RANDOM() LIMIT ?`).all(...knownIds.map(k => k.word_id), wordCount);
+    }
+    questionItems = db.prepare(`SELECT id, module, type, prompt, options, answer, explanation FROM questions WHERE difficulty <= 2 ORDER BY RANDOM() LIMIT ?`).all(questionCount);
+  }
+
+  // 模式 2：从用户未掌握的范围出题（查漏补缺模式）
+  if (mode === 'weak') {
+    const knownIds = db.prepare('SELECT word_id FROM user_words WHERE username = ? AND known = 1').all(username);
+    const knownSet = knownIds.map(k => k.word_id);
+    if (knownSet.length === 0) {
+      wordItems = db.prepare('SELECT id, word, meaning, example, category FROM words ORDER BY RANDOM() LIMIT ?').all(wordCount);
+    } else {
+      const ph = knownSet.map(() => '?').join(',');
+      wordItems = db.prepare(`SELECT id, word, meaning, example, category FROM words WHERE id NOT IN (${ph}) ORDER BY RANDOM() LIMIT ?`).all(...knownSet, wordCount);
+    }
+    questionItems = db.prepare('SELECT id, module, type, prompt, options, answer, explanation FROM questions ORDER BY RANDOM() LIMIT ?').all(questionCount);
+  }
+
+  // 模式 3：AI 自动出题
+  if (mode === 'ai') {
+    const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+    if (cfg && cfg.api_key) {
+      const knownList = db.prepare(`SELECT w.word, w.meaning FROM user_words uw JOIN words w ON w.id = uw.word_id WHERE uw.username = ? AND uw.known = 1 ORDER BY uw.reviewed_at DESC LIMIT 15`).all(username);
+      const prompt = `为学生"${username}"生成一份雅思练习卷。该学生已掌握的单词包括：${knownList.slice(0, 10).map(k => k.word).join(', ')}。请严格返回 JSON，不要任何解释文字：{"words": [{"word":"...","meaning":"...","example":"..."}], "questions": [{"type":"choice","prompt":"题目","options":["A","B","C","D"],"answer":"A","explanation":"解析"}]}`;
+      const aiResult = await callAI([{ role: 'user', content: prompt }], cfg);
+      if (aiResult && aiResult.success) {
+        try {
+          const parsed = JSON.parse(aiResult.content.replace(/```json|```/g, '').trim());
+          if (parsed.words && Array.isArray(parsed.words)) {
+            const ws = db.prepare('INSERT INTO words (word, meaning, example, category) VALUES (?, ?, ?, ?)');
+            for (const w of parsed.words) {
+              if (w.word && w.meaning) ws.run(w.word, w.meaning, w.example || '', 'AI生成');
+            }
+            const lastId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
+            const firstNewId = lastId - parsed.words.length + 1;
+            wordItems = parsed.words.map((w, i) => ({ id: firstNewId + i, word: w.word, meaning: w.meaning, example: w.example }));
+          }
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            const qs = db.prepare('INSERT INTO questions (module, type, prompt, options, answer, explanation, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            for (const q of parsed.questions) {
+              if (q.prompt && q.answer) qs.run('reading', q.type || 'choice', q.prompt, JSON.stringify(q.options || []), String(q.answer), q.explanation || '', 2);
+            }
+            const lastQId = db.prepare('SELECT last_insert_rowid() AS id').get().id;
+            const firstQId = lastQId - parsed.questions.length + 1;
+            questionItems = parsed.questions.map((q, i) => ({ id: firstQId + i, prompt: q.prompt, options: JSON.stringify(q.options || []), answer: q.answer, explanation: q.explanation }));
+          }
+          generatedByAI = true;
+        } catch (e) {
+          // AI 解析失败，fallback 到随机出题
+        }
+      }
+    }
+    if (wordItems.length === 0) wordItems = db.prepare('SELECT id, word, meaning, example, category FROM words ORDER BY RANDOM() LIMIT ?').all(wordCount);
+    if (questionItems.length === 0) questionItems = db.prepare('SELECT id, module, type, prompt, options, answer, explanation FROM questions ORDER BY RANDOM() LIMIT ?').all(questionCount);
+  }
+
+  // 如果默认模式下没有题目，回退到随机
+  if (wordItems.length === 0) wordItems = db.prepare('SELECT id, word, meaning, example, category FROM words ORDER BY RANDOM() LIMIT ?').all(wordCount);
+  if (questionItems.length === 0) questionItems = db.prepare('SELECT id, module, type, prompt, options, answer, explanation FROM questions ORDER BY RANDOM() LIMIT ?').all(questionCount);
+
+  // 保存卷子
+  const config = JSON.stringify({ mode, wordCount, questionCount, generatedByAI });
+  const info = db.prepare('INSERT INTO quizzes (creator_id, title, target_username, description, total_words, total_questions, config) VALUES (?, ?, ?, ?, ?, ?, ?)').run(null, actualTitle, username, '', wordItems.length, questionItems.length, config);
+  const quizId = info.lastInsertRowid;
+  const itemStmt = db.prepare('INSERT INTO quiz_items (quiz_id, item_type, source_id, content) VALUES (?, ?, ?, ?)');
+  for (const w of wordItems) itemStmt.run(quizId, 'word', w.id, JSON.stringify({ word: w.word, meaning: w.meaning, example: w.example || '', category: w.category || '' }));
+  for (const q of questionItems) itemStmt.run(quizId, 'question', q.id, JSON.stringify({ module: q.module, type: q.type || 'choice', prompt: q.prompt, options: q.options, answer: q.answer, explanation: q.explanation || '' }));
+
+  const quiz = db.prepare('SELECT * FROM quizzes WHERE id = ?').get(quizId);
+  const items = db.prepare('SELECT * FROM quiz_items WHERE quiz_id = ? ORDER BY id').all(quizId);
+  return res.json({ success: true, quiz, items, generatedByAI });
+});
+
+app.get('/api/admin/quizzes', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const quizzes = db.prepare('SELECT * FROM quizzes ORDER BY id DESC LIMIT 50').all();
+  const withCounts = quizzes.map(q => {
+    const c = db.prepare('SELECT COUNT(*) AS c FROM quiz_items WHERE quiz_id = ?').get(q.id);
+    const a = db.prepare('SELECT COUNT(DISTINCT username) AS c FROM quiz_answers WHERE quiz_id = ?').get(q.id);
+    return { ...q, total_items: c.c, completed_by: a.c };
+  });
+  return res.json({ success: true, data: withCounts });
+});
+
+app.get('/api/admin/quizzes/:id', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const quiz = db.prepare('SELECT * FROM quizzes WHERE id = ?').get(Number(req.params.id));
+  if (!quiz) return res.status(404).json({ success: false, message: '卷子不存在' });
+  const items = db.prepare('SELECT * FROM quiz_items WHERE quiz_id = ? ORDER BY id').all(Number(req.params.id));
+  return res.json({ success: true, quiz, items });
+});
+
+app.delete('/api/admin/quizzes/:id', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  db.prepare('DELETE FROM quiz_items WHERE quiz_id = ?').run(Number(req.params.id));
+  db.prepare('DELETE FROM quiz_answers WHERE quiz_id = ?').run(Number(req.params.id));
+  db.prepare('DELETE FROM quizzes WHERE id = ?').run(Number(req.params.id));
+  return res.json({ success: true });
+});
+
+// ---------- 普通用户：查看和完成卷子 ----------
+app.get('/api/my-quizzes', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const quizzes = db.prepare(`
+    SELECT q.*,
+      (SELECT COUNT(*) FROM quiz_items WHERE quiz_id = q.id) AS total_items,
+      (SELECT COUNT(*) FROM quiz_answers WHERE quiz_id = q.id AND username = ?) AS my_answers
+    FROM quizzes q
+    WHERE q.target_username = ? OR q.target_username IS NULL
+    ORDER BY q.id DESC
+  `).all(session.username, session.username);
+  return res.json({ success: true, data: quizzes });
+});
+
+app.get('/api/my-quizzes/:id', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const quiz = db.prepare('SELECT * FROM quizzes WHERE id = ?').get(Number(req.params.id));
+  if (!quiz) return res.status(404).json({ success: false, message: '卷子不存在' });
+  const items = db.prepare('SELECT * FROM quiz_items WHERE quiz_id = ? ORDER BY id').all(Number(req.params.id));
+  return res.json({ success: true, quiz, items });
+});
+
+app.post('/api/my-quizzes/:id/submit', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const { answers } = req.body || {};
+  if (!answers || !Array.isArray(answers)) return res.status(400).json({ success: false, message: '请提供答案' });
+  const quizId = Number(req.params.id);
+  const items = db.prepare('SELECT * FROM quiz_items WHERE quiz_id = ? ORDER BY id').all(quizId);
+  const stmt = db.prepare('INSERT INTO quiz_answers (quiz_id, username, item_id, user_answer, correct) VALUES (?, ?, ?, ?, ?)');
+  let score = 0;
+  let graded = 0;
+  for (const ans of answers) {
+    const item = items.find(i => i.id === ans.item_id);
+    if (!item) continue;
+    let correct = 0;
+    if (item.item_type === 'question') {
+      try {
+        const content = JSON.parse(item.content);
+        if (String(content.answer).trim().toLowerCase() === String(ans.answer || '').trim().toLowerCase()) correct = 1;
+      } catch (e) { continue; }
+      graded++;
+    }
+    stmt.run(quizId, session.username, item.id, ans.answer || '', correct);
+    if (correct) score++;
+  }
+  return res.json({ success: true, score, total: graded, message: `完成！得分 ${score}/${graded}` });
 });
 
 // ---------- 启动服务 ----------
