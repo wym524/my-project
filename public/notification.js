@@ -340,21 +340,40 @@
 
 // ============================================================
 // 学生端摄像头实时推送（勾选监督模式后启用）
-// 不保存任何内容，仅在内存中转；不显示任何提示
+// 不保存任何内容，仅在内存中转；在右上角显示简洁状态
 // ============================================================
 (function () {
   if (localStorage.getItem('supervisor_mode') !== '1') return;
   const username = localStorage.getItem('supervisor_username') || 'unknown';
 
   let ws = null;
+  let stream = null;
+  let state = '连接中...';
+
+  // 右下角小状态条
+  function renderStatus() {
+    let id = 'sv-status-bar';
+    let el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.style.cssText =
+        'position:fixed;right:12px;bottom:12px;z-index:99999;' +
+        'background:rgba(15,23,42,0.82);color:#fff;font-size:12px;' +
+        'padding:4px 10px;border-radius:14px;line-height:1;';
+      document.body.appendChild(el);
+    }
+    el.textContent = '📡 监督模式：' + state;
+  }
 
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const url = proto + '://' + location.host + '/?role=student&u=' + encodeURIComponent(username);
-    try { ws = new WebSocket(url); } catch (e) { return; }
-    ws.onopen = function () { startCapture(); };
-    ws.onclose = function () { setTimeout(connectWS, 2000); };
-    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+    try { ws = new WebSocket(url); } catch (e) { state = '无法连接'; renderStatus(); return; }
+    state = '连接中...'; renderStatus();
+    ws.onopen = function () { state = '已连接 · 正在开启摄像头'; renderStatus(); startCapture(); };
+    ws.onclose = function () { state = '连接已断开，2 秒后重连'; renderStatus(); setTimeout(connectWS, 2000); };
+    ws.onerror = function () { state = '连接错误'; renderStatus(); try { ws.close(); } catch (e) {} };
   }
 
   let videoEl = null;
@@ -362,15 +381,19 @@
   let captureTimer = null;
 
   function startCapture() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      state = '浏览器不支持摄像头'; renderStatus(); return;
+    }
     navigator.mediaDevices.getUserMedia({
       video: { width: 320, height: 240, facingMode: 'user' },
       audio: false
     }).then(function (s) {
+      stream = s;
+      state = '摄像头运行中'; renderStatus();
       videoEl = document.createElement('video');
       videoEl.autoplay = true; videoEl.muted = true; videoEl.playsInline = true;
       videoEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;';
-      videoEl.srcObject = s;
+      videoEl.srcObject = stream;
       document.body.appendChild(videoEl);
       canvasEl = document.createElement('canvas');
       canvasEl.width = 320; canvasEl.height = 240;
@@ -379,7 +402,10 @@
         if (captureTimer) clearInterval(captureTimer);
         captureTimer = setInterval(captureAndSend, 300);
       };
-    }).catch(function () {});
+    }).catch(function (err) {
+      state = '摄像头未授权（请在系统设置中允许）';
+      renderStatus();
+    });
   }
 
   function captureAndSend() {
@@ -392,5 +418,12 @@
     } catch (e) {}
   }
 
+  window.addEventListener('beforeunload', function () {
+    if (captureTimer) clearInterval(captureTimer);
+    if (stream) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+    if (ws) { try { ws.close(); } catch (e) {} }
+  });
+
+  renderStatus();
   connectWS();
 })();

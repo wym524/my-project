@@ -2179,6 +2179,22 @@ wss.on('connection', (ws, req) => {
   ws.on('error', () => {});
 });
 
+// ---------- 定期广播：每 500ms 把当前所有在线学生的最新帧推送给所有管理员 ----------
+setInterval(() => {
+  if (adminConnections.size === 0 || liveFrames.size === 0) return;
+  const snapshot = [];
+  for (const [u, info] of liveFrames.entries()) {
+    snapshot.push({ username: u, frame: info.frame, ts: info.ts });
+  }
+  if (snapshot.length === 0) return;
+  const payload = JSON.stringify({ type: 'frames', data: snapshot });
+  for (const a of adminConnections) {
+    if (a.readyState === WebSocket.OPEN) {
+      try { a.send(payload); } catch (e) {}
+    }
+  }
+}, 500);
+
 // 每 3 秒清理超过 8 秒没收到新帧的学生（视为离线）
 setInterval(() => {
   const now = Date.now();
@@ -2187,7 +2203,9 @@ setInterval(() => {
       liveFrames.delete(u);
       const payload = JSON.stringify({ type: 'offline', username: u });
       for (const a of adminConnections) {
-        if (a.readyState === WebSocket.OPEN) a.send(payload);
+        if (a.readyState === WebSocket.OPEN) {
+          try { a.send(payload); } catch (e) {}
+        }
       }
     }
   }
