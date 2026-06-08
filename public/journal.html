@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>心情日记 - 雅思学习空间</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">📚 雅思学习空间</div>
+      <div class="right-group">
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <a id="backBtn" href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a>
+    </div>
+    <h1 class="page-title">💭 心情日记</h1>
+    <p class="page-subtitle">分享你的学习心得、心情与感悟，一起相互鼓励吧</p>
+
+    <!-- 发表区域 -->
+    <div style="background:#fff; border-radius:12px; padding:20px; box-shadow:0 2px 12px rgba(0,0,0,0.05); margin-bottom:20px;">
+      <div style="font-size:14px; font-weight:600; color:#1f2937; margin-bottom:12px;">✏️ 说点什么...</div>
+      <textarea id="postContent" rows="3" placeholder="分享你的学习心得、心情感悟...（最多 1000 字）" style="width:100%; padding:12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px; resize:vertical; box-sizing:border-box; font-family:inherit;"></textarea>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span style="font-size:13px; color:#6b7280;">心情:</span>
+          <button onclick="setMood('😊 开心')" class="mood-btn">😊</button>
+          <button onclick="setMood('💪 努力')" class="mood-btn">💪</button>
+          <button onclick="setMood('😓 困惑')" class="mood-btn">😓</button>
+          <button onclick="setMood('🎉 收获')" class="mood-btn">🎉</button>
+          <button onclick="setMood('😔 沮丧')" class="mood-btn">😔</button>
+          <button onclick="setMood('💡 灵感')" class="mood-btn">💡</button>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span id="moodLabel" style="font-size:13px; color:#7c3aed;"></span>
+          <button onclick="publishPost()" id="publishBtn" style="padding:8px 20px; background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">📤 发布</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 帖子列表 -->
+    <div id="postsList" style="display:flex; flex-direction:column; gap:16px;"></div>
+    <div id="emptyState" style="display:none; padding:40px; background:linear-gradient(135deg,#e0f2fe,#f5f7fa); border-radius:12px; text-align:center; color:#374151; font-size:15px;">
+      📭 还没有日记<br><span style="font-size:13px; color:#6b7280;">成为第一个分享心情的人吧～</span>
+    </div>
+  </div>
+
+  <style>
+    .mood-btn {
+      padding: 4px 10px;
+      background: #f3f4f6;
+      border: 1.5px solid transparent;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mood-btn:hover { background: #e0e7ff; border-color: #7c3aed; }
+    .mood-btn.active { background: #ede9fe; border-color: #7c3aed; }
+  </style>
+
+  <script>
+    let currentUsername = null;
+    let currentRole = 'user';
+    let selectedMood = '';
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
+
+    function setMood(mood) {
+      selectedMood = (selectedMood === mood) ? '' : mood;
+      document.getElementById('moodLabel').textContent = selectedMood || '';
+      // 重置所有按钮的 active 状态
+      document.querySelectorAll('.mood-btn').forEach(btn => btn.classList.remove('active'));
+      // 设置选中状态
+      if (selectedMood) {
+        const btn = Array.from(document.querySelectorAll('.mood-btn')).find(b => b.textContent.includes(selectedMood.slice(0, 2)) || b.onclick.toString().includes("'" + mood + "'"));
+        if (btn) btn.classList.add('active');
+      }
+    }
+
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        currentUsername = data.username;
+        currentRole = data.role || 'user';
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        // 返回按钮：管理员回到 admin.html
+        const bb = document.getElementById('backBtn');
+        if (bb) {
+          if (currentRole === 'admin') {
+            bb.href = 'admin.html';
+            bb.textContent = '← 管理员主页';
+            bb.style.background = '#7c3aed';
+          } else {
+            bb.href = 'dashboard.html';
+            bb.textContent = '← 返回首页';
+            bb.style.background = '#2563eb';
+          }
+        }
+        loadPosts();
+      }).catch(() => { window.location.href = 'login.html'; });
+    }
+
+    function publishPost() {
+      const ta = document.getElementById('postContent');
+      const content = ta.value.trim();
+      if (!content) { alert('请输入内容'); return; }
+      const btn = document.getElementById('publishBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ 发布中...';
+      fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, mood: selectedMood })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          ta.value = '';
+          selectedMood = '';
+          document.getElementById('moodLabel').textContent = '';
+          document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+          loadPosts();
+        } else {
+          alert(res.message || '发布失败');
+        }
+      }).catch(() => alert('网络错误')).finally(() => {
+        btn.disabled = false;
+        btn.textContent = '📤 发布';
+      });
+    }
+
+    function loadPosts() {
+      fetch('/api/posts').then(r => r.json()).then(res => {
+        if (!res.success || !res.data) return;
+        const posts = res.data;
+        const container = document.getElementById('postsList');
+        if (posts.length === 0) {
+          container.innerHTML = '';
+          document.getElementById('emptyState').style.display = 'block';
+          return;
+        }
+        document.getElementById('emptyState').style.display = 'none';
+        container.innerHTML = posts.map(p => renderPost(p)).join('');
+      });
+    }
+
+    function renderPost(p) {
+      const isOwner = p.username === currentUsername;
+      const canDelete = isOwner || currentRole === 'admin';
+      return `
+        <div id="post-${p.id}" style="background:#fff; border-radius:12px; padding:20px 24px; box-shadow:0 2px 12px rgba(0,0,0,0.05);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:12px;">
+            <div>
+              <div style="font-size:14px; font-weight:700; color:#1f2937; display:flex; align-items:center; gap:8px;">
+                👤 ${escapeHtml(p.username)}
+                ${p.username === '001' || p.username === currentUsername && currentRole === 'admin' ? '' : ''}
+                ${p.mood ? '<span style="font-size:14px;">' + escapeHtml(p.mood) + '</span>' : ''}
+              </div>
+              <div style="font-size:12px; color:#9ca3af; margin-top:2px;">${(p.created_at || '').slice(0, 16)}</div>
+            </div>
+            ${canDelete ? `<button onclick="deletePost(${p.id})" style="padding:4px 10px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; cursor:pointer; font-size:12px;">删除</button>` : ''}
+          </div>
+          <div style="font-size:15px; color:#374151; line-height:1.7; white-space:pre-wrap; margin-bottom:14px;">${escapeHtml(p.content)}</div>
+          <div style="display:flex; gap:14px; align-items:center; padding-top:10px; border-top:1px solid #f3f4f6;">
+            <button onclick="toggleLike(${p.id})" id="like-btn-${p.id}" style="display:flex; align-items:center; gap:6px; padding:6px 14px; background:${p.liked ? '#fef3c7' : '#f3f4f6'}; color:${p.liked ? '#b45309' : '#374151'}; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:500;">
+              ${p.liked ? '❤️' : '🤍'} <span id="like-count-${p.id}">${p.like_count || 0}</span>
+            </button>
+            <button onclick="toggleComments(${p.id})" style="display:flex; align-items:center; gap:6px; padding:6px 14px; background:#f3f4f6; color:#374151; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:500;">
+              💬 <span id="comment-count-${p.id}">${p.comment_count || 0}</span>
+            </button>
+          </div>
+          <div id="comments-${p.id}" style="display:none; margin-top:14px; background:#f9fafb; border-radius:8px; padding:14px;">
+            <div id="comment-list-${p.id}" style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px;"></div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="comment-input-${p.id}" placeholder="写下你的评论..." style="flex:1; padding:8px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:13px;">
+              <button onclick="addComment(${p.id})" style="padding:8px 16px; background:#2563eb; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">发送</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleLike(postId) {
+      fetch('/api/posts/' + postId + '/like', { method: 'POST' }).then(r => r.json()).then(res => {
+        if (res.success) {
+          const btn = document.getElementById('like-btn-' + postId);
+          if (btn) {
+            if (res.action === 'liked') {
+              btn.style.background = '#fef3c7';
+              btn.style.color = '#b45309';
+              btn.innerHTML = '❤️ <span id="like-count-' + postId + '">' + res.like_count + '</span>';
+            } else {
+              btn.style.background = '#f3f4f6';
+              btn.style.color = '#374151';
+              btn.innerHTML = '🤍 <span id="like-count-' + postId + '">' + res.like_count + '</span>';
+            }
+          }
+        }
+      });
+    }
+
+    function toggleComments(postId) {
+      const box = document.getElementById('comments-' + postId);
+      if (box.style.display === 'block') {
+        box.style.display = 'none';
+        return;
+      }
+      box.style.display = 'block';
+      loadComments(postId);
+    }
+
+    function loadComments(postId) {
+      fetch('/api/posts/' + postId + '/comments').then(r => r.json()).then(res => {
+        const list = document.getElementById('comment-list-' + postId);
+        if (!res.success || !res.data || res.data.length === 0) {
+          list.innerHTML = '<div style="font-size:12px; color:#9ca3af; text-align:center; padding:8px;">还没有评论，成为第一个吧～</div>';
+          // 更新顶部评论计数
+          const cnt = document.getElementById('comment-count-' + postId);
+          if (cnt) cnt.textContent = '0';
+          return;
+        }
+        const comments = res.data;
+        list.innerHTML = comments.map(c => {
+          const canDel = (c.username === currentUsername) || currentRole === 'admin';
+          return `
+            <div style="background:#fff; padding:10px 14px; border-radius:8px; font-size:13px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                <div style="flex:1;">
+                  <span style="font-weight:700; color:#2563eb;">${escapeHtml(c.username)}</span>
+                  ${c.role === 'admin' ? '<span style="padding:1px 6px; background:#7c3aed; color:#fff; border-radius:4px; font-size:10px; margin-left:6px;">管理员</span>' : ''}
+                  <span style="color:#9ca3af; font-size:11px; margin-left:8px;">${(c.created_at || '').slice(5, 16)}</span>
+                  <div style="color:#374151; margin-top:4px; line-height:1.6; white-space:pre-wrap;">${escapeHtml(c.content)}</div>
+                </div>
+                ${canDel ? `<button onclick="deleteComment(${c.id}, ${postId})" style="padding:2px 8px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; cursor:pointer; font-size:11px;">删除</button>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+        // 更新计数
+        const cnt = document.getElementById('comment-count-' + postId);
+        if (cnt) cnt.textContent = comments.length;
+      });
+    }
+
+    function addComment(postId) {
+      const input = document.getElementById('comment-input-' + postId);
+      const content = input.value.trim();
+      if (!content) return;
+      input.value = '';
+      fetch('/api/posts/' + postId + '/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          loadComments(postId);
+          // 更新列表总评论计数
+          const cnt = document.getElementById('comment-count-' + postId);
+          if (cnt && res.count !== undefined) cnt.textContent = res.count;
+        } else {
+          alert(res.message || '评论失败');
+        }
+      });
+    }
+
+    function deletePost(postId) {
+      if (!confirm('确定删除这条日记吗？相关评论也会被一起删除')) return;
+      fetch('/api/posts/' + postId, { method: 'DELETE' }).then(r => r.json()).then(res => {
+        if (res.success) {
+          const el = document.getElementById('post-' + postId);
+          if (el) el.style.display = 'none';
+          loadPosts();
+        } else alert(res.message || '删除失败');
+      });
+    }
+
+    function deleteComment(commentId, postId) {
+      if (!confirm('确定删除这条评论吗？')) return;
+      fetch('/api/comments/' + commentId, { method: 'DELETE' }).then(r => r.json()).then(res => {
+        if (res.success) {
+          loadComments(postId);
+          loadPosts();
+        } else alert(res.message || '删除失败');
+      });
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>

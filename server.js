@@ -217,6 +217,40 @@ db.exec(`
   );
 `);
 
+// posts 用户日记/心情
+db.exec(`
+  CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    content TEXT NOT NULL,
+    mood TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// comments 评论（管理员/用户都可以评论）
+db.exec(`
+  CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    role TEXT DEFAULT 'user',
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// likes 点赞
+db.exec(`
+  CREATE TABLE IF NOT EXISTS likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, username)
+  );
+`);
+
 // ---------- 管理员账号初始化 ----------
 const adminUsername = '001';
 const adminPassword = '141242';
@@ -1859,6 +1893,112 @@ app.post('/api/my-quizzes/:id/submit', (req, res) => {
     if (correct) score++;
   }
   return res.json({ success: true, score, total: graded, message: `完成！得分 ${score}/${graded}` });
+});
+
+// ---------- 日记/留言板 ----------
+// 获取帖子列表（所有用户可见）
+app.get('/api/posts', (req, res) => {
+  const session = parseSession(req);
+  const username = session && session.username ? session.username : null;
+  const posts = db.prepare(`
+    SELECT p.*,
+      (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS like_count,
+      (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count
+    FROM posts p
+    ORDER BY p.id DESC
+    LIMIT 100
+  `).all();
+  const postsWithLikes = posts.map(p => {
+    const liked = username ? (db.prepare('SELECT 1 FROM likes WHERE post_id = ? AND username = ?').get(p.id, username) ? 1 : 0) : 0;
+    return { ...p, liked: liked };
+  });
+  return res.json({ success: true, data: postsWithLikes });
+});
+
+// 发表帖子
+app.post('/api/posts', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const { content, mood } = req.body || {};
+  if (!content || !content.trim()) return res.status(400).json({ success: false, message: '内容不能为空' });
+  if (content.length > 1000) return res.status(400).json({ success: false, message: '内容过长（最多 1000 字）' });
+  const info = db.prepare('INSERT INTO posts (username, content, mood) VALUES (?, ?, ?)').run(session.username, content.trim().slice(0, 1000), (mood || '').toString().slice(0, 20));
+  const post = db.prepare(`
+    SELECT p.*,
+      0 AS like_count,
+      0 AS comment_count,
+      0 AS liked
+    FROM posts p WHERE p.id = ?
+  `).get(info.lastInsertRowid);
+  return res.json({ success: true, post });
+});
+
+// 获取某帖子的评论
+app.get('/api/posts/:id/comments', (req, res) => {
+  const comments = db.prepare('SELECT * FROM comments WHERE post_id = ? ORDER BY id ASC').all(Number(req.params.id));
+  return res.json({ success: true, data: comments });
+});
+
+// 发表评论
+app.post('/api/posts/:id/comments', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const postId = Number(req.params.id);
+  const { content } = req.body || {};
+  if (!content || !content.trim()) return res.status(400).json({ success: false, message: '评论不能为空' });
+  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ success: false, message: '帖子不存在' });
+  db.prepare('INSERT INTO comments (post_id, username, role, content) VALUES (?, ?, ?, ?)').run(postId, session.username, session.role || 'user', content.trim().slice(0, 500));
+  const comments = db.prepare('SELECT * FROM comments WHERE post_id = ? ORDER BY id ASC').all(postId);
+  return res.json({ success: true, data: comments, count: comments.length });
+});
+
+// 点赞 / 取消点赞
+app.post('/api/posts/:id/like', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const postId = Number(req.params.id);
+  const existing = db.prepare('SELECT id FROM likes WHERE post_id = ? AND username = ?').get(postId, session.username);
+  let action;
+  if (existing) {
+    db.prepare('DELETE FROM likes WHERE id = ?').run(existing.id);
+    action = 'unliked';
+  } else {
+    db.prepare('INSERT INTO likes (post_id, username) VALUES (?, ?)').run(postId, session.username);
+    action = 'liked';
+  }
+  const count = db.prepare('SELECT COUNT(*) AS c FROM likes WHERE post_id = ?').get(postId).c;
+  return res.json({ success: true, action, like_count: count, liked: action === 'liked' ? 1 : 0 });
+});
+
+// 删除帖子（作者本人或管理员）
+app.delete('/api/posts/:id', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const postId = Number(req.params.id);
+  const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ success: false, message: '帖子不存在' });
+  if (post.username !== session.username && session.role !== 'admin') {
+    return res.status(403).json({ success: false, message: '没有权限删除' });
+  }
+  db.prepare('DELETE FROM likes WHERE post_id = ?').run(postId);
+  db.prepare('DELETE FROM comments WHERE post_id = ?').run(postId);
+  db.prepare('DELETE FROM posts WHERE id = ?').run(postId);
+  return res.json({ success: true });
+});
+
+// 删除评论（作者本人或管理员）
+app.delete('/api/comments/:id', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const commentId = Number(req.params.id);
+  const comment = db.prepare('SELECT * FROM comments WHERE id = ?').get(commentId);
+  if (!comment) return res.status(404).json({ success: false, message: '评论不存在' });
+  if (comment.username !== session.username && session.role !== 'admin') {
+    return res.status(403).json({ success: false, message: '没有权限删除' });
+  }
+  db.prepare('DELETE FROM comments WHERE id = ?').run(commentId);
+  return res.json({ success: true });
 });
 
 // ---------- 启动服务 ----------
