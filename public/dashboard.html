@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>雅思学习空间</title>
+  <title>雅思学习空间 - 学习主页</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,131 +11,173 @@
     <div class="page-topbar">
       <div class="brand">📚 雅思学习空间</div>
       <div class="right-group">
-        <span class="username" id="username">--</span>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
       </div>
     </div>
 
-    <h2 class="page-title">学习模块</h2>
-    <p class="page-subtitle">选择一个模块开始你的学习</p>
+    <h1 class="page-title">学习空间</h1>
+    <p class="page-subtitle">欢迎来到雅思学习空间，开始您的高效备考之旅！</p>
 
+    <!-- 模块卡片 -->
+    <h2 class="section-title">🎯 学习模块</h2>
     <div class="module-grid">
-      <a class="module-card" href="words.html">
+      <a href="words.html" class="module-card">
         <div class="icon">📖</div>
         <div class="mc-title">背单词</div>
-        <div class="mc-desc">分类学习雅思核心词汇，掌握高频单词</div>
+        <div class="mc-desc">高效记忆雅思高频词汇，分组学习与复习</div>
       </a>
-      <a class="module-card" href="questions.html">
-        <div class="icon">✏️</div>
+      <a href="questions.html" class="module-card">
+        <div class="icon">📝</div>
         <div class="mc-title">真题练习</div>
-        <div class="mc-desc">雅思真题实战训练，即时反馈答案</div>
+        <div class="mc-desc">雅思阅读、听力真题训练，即时反馈解析</div>
       </a>
-      <a class="module-card" href="speaking.html">
+      <a href="speaking.html" class="module-card">
         <div class="icon">🎤</div>
         <div class="mc-title">口语练习</div>
-        <div class="mc-desc">Part1/Part2/Part3 全话题覆盖，含提示与参考</div>
+        <div class="mc-desc">Part 1/2/3 话题训练，录音回放与AI评分</div>
       </a>
-      <a class="module-card" href="writing.html">
-        <div class="icon">📝</div>
+      <a href="writing.html" class="module-card">
+        <div class="icon">✍️</div>
         <div class="mc-title">写作练习</div>
-        <div class="mc-desc">大小作文题目，含思路分析与范文参考</div>
+        <div class="mc-desc">大作文小作文训练，范文参考与AI批改</div>
       </a>
     </div>
 
-    <h2 class="page-title" style="margin-top: 40px;">我的任务</h2>
-    <p class="page-subtitle">管理员分配给你的学习任务</p>
-    <div id="taskList" class="task-list">
-      <div class="loading-text">加载中...</div>
+    <!-- 学习统计 -->
+    <h2 class="section-title">📊 我的学习统计</h2>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card stat-blue">
+        <div class="num" id="statWordsTotal">0</div>
+        <div class="label">总单词数</div>
+      </div>
+      <div class="stat-card stat-green">
+        <div class="num" id="statWordsKnown">0</div>
+        <div class="label">已掌握</div>
+      </div>
+      <div class="stat-card stat-yellow">
+        <div class="num" id="statAnswered">0</div>
+        <div class="label">答题数</div>
+      </div>
+      <div class="stat-card stat-purple">
+        <div class="num" id="statAccuracy">0%</div>
+        <div class="label">正确率</div>
+      </div>
+      <div class="stat-card stat-pink">
+        <div class="num" id="statCheckins">0</div>
+        <div class="label">打卡天数</div>
+      </div>
     </div>
 
-    <h2 class="page-title" style="margin-top: 40px;">我的统计</h2>
-    <p class="page-subtitle">查看你的学习进度</p>
-    <div id="statsBox" class="stats-grid">
-      <div class="loading-text">加载中...</div>
+    <!-- 任务列表 & AI助手 -->
+    <div class="content-row" style="margin-top:24px;">
+      <div class="panel">
+        <h2 class="section-title">📋 我的任务</h2>
+        <div id="tasksList">
+          <div class="loading-text">加载任务中...</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 class="section-title">🤖 学习助手</h2>
+        <a href="learning.html#ai" class="module-card" style="display:block; text-decoration:none; padding:20px; background:linear-gradient(135deg,#dbeafe 0%,#e0e7ff 100%); border-radius:12px;">
+          <div class="icon" style="font-size:32px;">💡</div>
+          <div class="mc-title" style="color:#1e3a8a; font-size:16px;">AI 学习助手</div>
+          <div class="mc-desc">与AI对话，解决学习疑问，获取个性化建议</div>
+        </a>
+        <div style="margin-top:16px;">
+          <button class="btn-primary" style="width:100%;" onclick="doCheckin()">✅ 今日打卡</button>
+        </div>
+        <div style="margin-top:12px;">
+          <button class="btn-secondary" style="width:100%;" onclick="window.location.href='learning.html'">📈 查看学习中心</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
-    const usernameEl = document.getElementById('username');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const taskList = document.getElementById('taskList');
-    const statsBox = document.getElementById('statsBox');
+    let currentUser = null;
 
-    function parseTask(t) {
-      const moduleMap = { word: '背单词', question: '真题练习', speaking: '口语练习', writing: '写作练习' };
-      return { ...t, moduleName: moduleMap[t.module] || t.module };
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) {
+          window.location.href = 'login.html';
+          return;
+        }
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        loadStats();
+        loadTasks();
+      }).catch(() => {
+        window.location.href = 'login.html';
+      });
     }
 
-    fetch('/api/me')
-      .then(function(r) {
-        if (!r.ok) { window.location.href = '/login.html'; return null; }
-        return r.json();
-      })
-      .then(function(data) {
-        if (!data || !data.loggedIn) { window.location.href = '/login.html'; return; }
-        usernameEl.textContent = data.username;
-        loadTasks();
-        loadStats();
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => {
+        window.location.href = 'login.html';
       });
-
-    function loadTasks() {
-      fetch('/api/tasks')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (!data || !data.data || data.data.length === 0) {
-            taskList.innerHTML = '<div class="empty-state">暂无任务</div>';
-            return;
-          }
-          taskList.innerHTML = data.data.map(t => {
-            const moduleMap = { word: '背单词', words: '背单词', question: '真题练习', questions: '真题练习', speaking: '口语练习', writing: '写作练习' };
-            const isDone = t.status === 'completed';
-            return `<div class="task-card ${isDone ? 'task-done' : 'task-pending'}">
-              <div class="task-title">${t.title}</div>
-              <div class="task-desc">${t.description || ''}</div>
-              <div class="task-meta">
-                <span>📚 ${moduleMap[t.module] || t.module}</span>
-                <span>📅 ${t.created_at ? t.created_at.split('T')[0] : ''}</span>
-                <span>状态: ${isDone ? '✅ 已完成' : '⏳ 待完成'}</span>
-                ${t.score ? `<span>得分: ${t.score}</span>` : ''}
-              </div>
-              ${!isDone ? `<button class="btn-primary btn-small" onclick="completeTask(${t.id})">标记完成</button>` : ''}
-            </div>`;
-          }).join('');
-        });
     }
 
     function loadStats() {
-      fetch('/api/stats')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (!data || !data.data) return;
-          const d = data.data;
-          const rate = d.answeredQuestions > 0 ? Math.round((d.correctQuestions / d.answeredQuestions) * 100) : 0;
-          statsBox.innerHTML = `
-            <div class="stat-card"><div class="num">${d.totalTasks || 0}</div><div class="label">总任务数</div></div>
-            <div class="stat-card"><div class="num">${d.completedTasks || 0}</div><div class="label">已完成任务</div></div>
-            <div class="stat-card"><div class="num">${d.knownWords || 0}</div><div class="label">已掌握单词</div></div>
-            <div class="stat-card"><div class="num">${d.answeredQuestions || 0}</div><div class="label">完成题目</div></div>
-            <div class="stat-card"><div class="num">${rate}%</div><div class="label">正确率</div></div>
-          `;
-        });
+      fetch('/api/stats/overview').then(r => r.json()).then(res => {
+        if (res.success) {
+          const d = res.data;
+          document.getElementById('statWordsTotal').textContent = d.words.total;
+          document.getElementById('statWordsKnown').textContent = d.words.known;
+          document.getElementById('statAnswered').textContent = d.questions.answered;
+          document.getElementById('statAccuracy').textContent = d.questions.accuracy + '%';
+          document.getElementById('statCheckins').textContent = d.checkins.total;
+        }
+      });
     }
 
-    window.completeTask = function(id) {
-      fetch('/api/tasks/' + id + '/complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-        .then(r => r.json())
-        .then(d => {
-          if (d.success || d.message) {
-            loadTasks();
-            loadStats();
-          }
-        });
-    };
+    function loadTasks() {
+      fetch('/api/tasks').then(r => r.json()).then(res => {
+        const container = document.getElementById('tasksList');
+        if (!res.success || !res.data || res.data.length === 0) {
+          container.innerHTML = '<div class="empty-state">暂无任务</div>';
+          return;
+        }
+        container.innerHTML = res.data.slice(0, 5).map(t => `
+          <div class="task-card ${t.status === 'completed' ? 'task-done' : 'task-pending'}" style="margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+              <div style="flex:1;">
+                <div class="task-title" style="font-size:15px; font-weight:600; color:#1f2937; margin-bottom:4px;">${t.title}</div>
+                <div class="task-meta" style="font-size:12px; color:#6b7280;">
+                  <span style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:4px; margin-right:8px;">${t.module || '通用'}</span>
+                  <span style="background:${t.status === 'completed' ? '#d1fae5' : '#fef3c7'}; color:${t.status === 'completed' ? '#065f46' : '#92400e'}; padding:2px 8px; border-radius:4px;">
+                    ${t.status === 'completed' ? '✅ 已完成' : '⏳ 进行中'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }).catch(() => {
+        document.getElementById('tasksList').innerHTML = '<div class="empty-state">加载失败</div>';
+      });
+    }
 
-    logoutBtn.addEventListener('click', function() {
-      fetch('/api/logout', { method: 'POST' })
-        .then(function() { window.location.href = '/login.html'; });
-    });
+    function doCheckin() {
+      fetch('/api/checkin').then(r => r.json()).then(res => {
+        if (res.success) {
+          showToast(res.alreadyChecked ? '今日已打卡 ✓' : '打卡成功！🎉 累计 ' + (res.totalCheckins || 0) + ' 天', 'success');
+          loadStats();
+        } else {
+          showToast(res.message || '打卡失败', 'error');
+        }
+      });
+    }
+
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    checkAuth();
   </script>
 </body>
 </html>

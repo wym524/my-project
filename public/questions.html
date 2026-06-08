@@ -9,262 +9,184 @@
 <body>
   <div class="page-container">
     <div class="page-topbar">
-      <div class="brand">✏️ 真题练习</div>
+      <div class="brand">📚 雅思学习空间</div>
       <div class="right-group">
-        <a href="learning.html" style="color:#fff;font-size:13px;text-decoration:none;">← 返回学习空间</a>
-        <span class="username" id="username">--</span>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
       </div>
     </div>
+
+    <h1 class="page-title">📝 真题练习</h1>
+    <p class="page-subtitle">雅思阅读、听力真题训练，选择题与填空题结合</p>
 
     <div class="filter-bar">
-      <div class="filter-item">
-        <label>模块：</label>
-        <select id="moduleSelect">
-          <option value="">全部</option>
-          <option value="reading">阅读</option>
-          <option value="listening">听力</option>
-          <option value="writing">写作</option>
-        </select>
-      </div>
-      <div class="filter-item">
-        <label>题型：</label>
-        <select id="typeSelect">
-          <option value="">全部</option>
-          <option value="choice">选择题</option>
-          <option value="blank">填空题</option>
-        </select>
-      </div>
-      <button class="btn-primary btn-sm" id="applyBtn">应用筛选</button>
+      <label><strong>模块:</strong></label>
+      <select id="moduleFilter" onchange="loadQuestions()">
+        <option value="">全部</option>
+        <option value="reading">阅读</option>
+        <option value="listening">听力</option>
+      </select>
+      <label style="margin-left:12px;"><strong>题型:</strong></label>
+      <select id="typeFilter" onchange="loadQuestions()">
+        <option value="">全部</option>
+        <option value="choice">选择题</option>
+        <option value="blank">填空题</option>
+      </select>
+      <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
     </div>
 
-    <div id="questionArea">
-      <div class="empty-tip">加载中...</div>
-    </div>
-
-    <div id="emptyPanel" class="panel" style="display:none;text-align:center;">
-      <div class="empty-tip">暂无符合条件的题目</div>
-    </div>
-
-    <div class="panel" id="statsPanel" style="margin-top:20px;display:none;">
-      <div class="section-title">📊 本次答题统计</div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">已答题数</div></div>
-        <div class="stat-card"><div class="num" id="statCorrect">0</div><div class="label">答对</div></div>
-        <div class="stat-card"><div class="num" id="statWrong">0</div><div class="label">答错</div></div>
-        <div class="stat-card"><div class="num" id="statRate">0%</div><div class="label">正确率</div></div>
-      </div>
-      <div style="margin-top:16px;text-align:center;">
-        <button class="btn-primary btn-sm" id="nextQuestionBtn">下一题 →</button>
-      </div>
+    <div id="questionsContainer">
+      <div class="loading-text">加载题目中...</div>
     </div>
   </div>
 
   <script>
-    var usernameEl = document.getElementById('username');
-    var logoutBtn = document.getElementById('logoutBtn');
-    var moduleSelect = document.getElementById('moduleSelect');
-    var typeSelect = document.getElementById('typeSelect');
-    var applyBtn = document.getElementById('applyBtn');
-    var questionArea = document.getElementById('questionArea');
-    var emptyPanel = document.getElementById('emptyPanel');
-    var statsPanel = document.getElementById('statsPanel');
-    var statTotal = document.getElementById('statTotal');
-    var statCorrect = document.getElementById('statCorrect');
-    var statWrong = document.getElementById('statWrong');
-    var statRate = document.getElementById('statRate');
-    var nextQuestionBtn = document.getElementById('nextQuestionBtn');
+    let questions = [];
+    let answeredIds = {};
+    let currentUser = null;
 
-    var questions = [];
-    var currentIndex = 0;
-    var answered = 0;
-    var correctCount = 0;
-
-    function showToast(msg, type) {
-      var t = document.createElement('div');
-      t.className = 'toast toast-' + (type || 'info');
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(function() { t.remove(); }, 2000);
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        loadQuestions();
+      }).catch(() => { window.location.href = 'login.html'; });
     }
 
-    fetch('/api/me')
-      .then(function(r) {
-        if (!r.ok) { window.location.href = '/login.html'; return null; }
-        return r.json();
-      })
-      .then(function(data) {
-        if (!data) return;
-        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
-        usernameEl.textContent = data.username;
-        loadQuestions();
-      })
-      .catch(function() { window.location.href = '/login.html'; });
-
-    logoutBtn.addEventListener('click', function() {
-      fetch('/api/logout', { method: 'POST' })
-        .then(function() { window.location.href = '/login.html'; });
-    });
-
-    applyBtn.addEventListener('click', function() {
-      currentIndex = 0;
-      loadQuestions();
-    });
-
-    nextQuestionBtn.addEventListener('click', function() {
-      if (questions.length === 0) return;
-      currentIndex = (currentIndex + 1) % questions.length;
-      renderQuestion();
-    });
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
 
     function loadQuestions() {
-      var mod = moduleSelect.value;
-      var tp = typeSelect.value;
-      var url = '/api/questions?limit=100';
-      if (mod) url += '&module=' + encodeURIComponent(mod);
-      if (tp) url += '&type=' + encodeURIComponent(tp);
-
-      fetch(url)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.success || !data.data || data.data.length === 0) {
-            questions = [];
-            questionArea.style.display = 'none';
-            emptyPanel.style.display = 'block';
-            statsPanel.style.display = 'none';
-            return;
-          }
-          questions = data.data;
-          emptyPanel.style.display = 'none';
-          questionArea.style.display = 'block';
-          statsPanel.style.display = 'block';
-          if (currentIndex >= questions.length) currentIndex = 0;
-          renderQuestion();
-        })
-        .catch(function() {
-          questionArea.innerHTML = '<div class="empty-tip">加载失败</div>';
-        });
-    }
-
-    function renderQuestion() {
-      if (questions.length === 0) return;
-      var q = questions[currentIndex];
-      var moduleText = { reading: '阅读', listening: '听力', writing: '写作' }[q.module] || q.module;
-      var typeText = { choice: '选择题', blank: '填空题' }[q.type] || q.type;
-
-      var html = '<div class="question-card">';
-      html += '<div class="q-meta">' +
-        '<span class="tag tag-module">' + moduleText + '</span>' +
-        '<span class="tag tag-type">' + typeText + '</span>' +
-        '<span style="color:#6b7280;font-size:13px;">题目 ' + (currentIndex + 1) + '/' + questions.length + '</span>' +
-        '</div>';
-      html += '<div class="q-prompt">' + escapeHtml(q.prompt) + '</div>';
-
-      if (q.type === 'choice' && q.options && q.options.length > 0) {
-        html += '<div class="choice-options" id="choiceOptions">';
-        for (var i = 0; i < q.options.length; i++) {
-          var letter = String.fromCharCode(65 + i);
-          html += '<button class="choice-option" data-idx="' + i + '">' +
-            '<strong>' + letter + '.</strong> ' + escapeHtml(q.options[i]) + '</button>';
+      const mod = document.getElementById('moduleFilter').value;
+      const type = document.getElementById('typeFilter').value;
+      let url = '/api/questions';
+      const params = [];
+      if (mod) params.push('module=' + encodeURIComponent(mod));
+      if (type) params.push('type=' + encodeURIComponent(type));
+      if (params.length) url += '?' + params.join('&');
+      fetch(url).then(r => r.json()).then(res => {
+        if (res.success) {
+          questions = res.data || [];
+          renderQuestions();
         }
-        html += '</div>';
-      } else {
-        html += '<div class="blank-input-group">' +
-          '<input type="text" class="blank-input" id="blankInput" placeholder="请输入答案..." />' +
-          '<button class="btn-primary" id="submitAnswerBtn">提交答案</button>' +
-          '</div>';
-      }
-
-      html += '<div id="answerResult"></div>';
-      html += '</div>';
-      questionArea.innerHTML = html;
-
-      if (q.type === 'choice' && q.options && q.options.length > 0) {
-        var btns = questionArea.querySelectorAll('.choice-option');
-        btns.forEach(function(btn) {
-          btn.addEventListener('click', function() {
-            handleChoiceAnswer(Number(btn.getAttribute('data-idx')));
-          });
-        });
-      } else {
-        var submitBtn = document.getElementById('submitAnswerBtn');
-        submitBtn.addEventListener('click', function() {
-          var val = document.getElementById('blankInput').value.trim();
-          if (!val) {
-            showToast('请先输入答案', 'error');
-            return;
-          }
-          handleBlankAnswer(val);
-        });
-      }
-
-      updateStats();
-    }
-
-    function handleChoiceAnswer(idx) {
-      var q = questions[currentIndex];
-      var correctIdx = Number(q.answer);
-      var btns = questionArea.querySelectorAll('.choice-option');
-      btns.forEach(function(b) { b.disabled = true; });
-      answered++;
-      if (idx === correctIdx) {
-        btns[idx].classList.add('correct');
-        correctCount++;
-      } else {
-        btns[idx].classList.add('wrong');
-        if (!isNaN(correctIdx) && correctIdx >= 0 && correctIdx < btns.length) {
-          btns[correctIdx].classList.add('correct');
-        }
-      }
-      submitAnswer(String(idx));
-      showResult(idx === correctIdx, String.fromCharCode(65 + correctIdx), q.explanation);
-      updateStats();
-    }
-
-    function handleBlankAnswer(val) {
-      var q = questions[currentIndex];
-      var isCorrect = val.toLowerCase() === String(q.answer || '').trim().toLowerCase();
-      answered++;
-      if (isCorrect) correctCount++;
-      submitAnswer(val);
-      showResult(isCorrect, q.answer, q.explanation);
-      updateStats();
-    }
-
-    function submitAnswer(ans) {
-      var q = questions[currentIndex];
-      fetch('/api/questions/' + q.id + '/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answer: ans })
-      }).catch(function() {});
-    }
-
-    function showResult(isCorrect, correctAnswer, explanation) {
-      var resultEl = document.getElementById('answerResult');
-      var html = '<div class="answer-result ' + (isCorrect ? 'correct-box' : 'wrong-box') + '">';
-      html += '<div class="result-title">' + (isCorrect ? '✅ 回答正确！' : '❌ 回答错误') + '</div>';
-      html += '<div class="result-answer"><strong>正确答案：</strong>' + escapeHtml(correctAnswer || '') + '</div>';
-      if (explanation) {
-        html += '<div class="result-explanation"><strong>解析：</strong>' + escapeHtml(explanation) + '</div>';
-      }
-      html += '</div>';
-      resultEl.innerHTML = html;
-    }
-
-    function updateStats() {
-      statTotal.textContent = answered;
-      statCorrect.textContent = correctCount;
-      statWrong.textContent = answered - correctCount;
-      statRate.textContent = answered > 0 ? Math.round((correctCount / answered) * 100) + '%' : '0%';
-    }
-
-    function escapeHtml(s) {
-      if (s == null) return '';
-      return String(s).replace(/[&<>"']/g, function(c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
       });
     }
+
+    function renderQuestions() {
+      const container = document.getElementById('questionsContainer');
+      if (questions.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无题目，请调整筛选条件</div>';
+        return;
+      }
+      container.innerHTML = questions.map((q, idx) => renderQuestion(q, idx)).join('');
+    }
+
+    function renderQuestion(q, idx) {
+      const typeLabel = q.type === 'choice' ? '选择题' : (q.type === 'blank' ? '填空题' : '题目');
+      const moduleLabel = q.module === 'reading' ? '阅读' : (q.module === 'listening' ? '听力' : q.module);
+      const answered = answeredIds[q.id];
+
+      let optionsHtml = '';
+      if (q.type === 'choice' && q.options && q.options.length > 0) {
+        optionsHtml = '<div class="choice-options" style="margin-top:16px;">' +
+          q.options.map((opt, i) => {
+            let cls = 'choice-option';
+            if (answered) {
+              const correctAns = String(q.answer).trim();
+              if (String(i) === correctAns) cls += ' correct';
+              else if (answered.choice === i) cls += ' wrong';
+            }
+            return `<button class="${cls}" onclick="answerChoice(${q.id}, ${i})" ${answered ? 'disabled' : ''}>
+              <strong style="color:#1e40af;">${String.fromCharCode(65 + i)}.</strong> ${escapeHtml(opt)}
+            </button>`;
+          }).join('') +
+          '</div>';
+      } else if (q.type === 'blank') {
+        optionsHtml = `
+          <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <input type="text" id="blank-${q.id}" class="blank-input" placeholder="请输入答案..." ${answered ? 'disabled' : ''} style="flex:1; min-width:200px; padding:10px 14px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px; outline:none;">
+            <button class="btn-primary" onclick="answerBlank(${q.id})" ${answered ? 'disabled' : ''}>提交答案</button>
+          </div>
+        `;
+      }
+
+      let resultHtml = '';
+      if (answered) {
+        const correct = answered.correct;
+        resultHtml = `
+          <div class="answer-result ${correct ? 'correct-box' : 'wrong-box'}" style="margin-top:16px; padding:14px 18px; border-radius:8px; border-left:4px solid ${correct ? '#10b981' : '#ef4444'}; background:${correct ? '#ecfdf5' : '#fef2f2'};">
+            <div style="font-weight:600; color:${correct ? '#065f46' : '#991b1b'}; margin-bottom:6px;">
+              ${correct ? '✅ 回答正确！' : '❌ 回答错误'}
+            </div>
+            <div style="font-size:14px; color:#374151; margin-bottom:4px;">
+              <strong>正确答案:</strong> ${escapeHtml(q.answer)}
+            </div>
+            ${answered.userAnswer !== undefined ? `<div style="font-size:14px; color:#374151; margin-bottom:4px;"><strong>你的答案:</strong> ${escapeHtml(answered.userAnswer)}</div>` : ''}
+            ${q.explanation ? `<div style="font-size:13px; color:#4b5563; line-height:1.7; margin-top:8px; padding-top:8px; border-top:1px dashed rgba(0,0,0,0.1);"><strong>💡 解析:</strong> ${escapeHtml(q.explanation)}</div>` : ''}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="question-card" style="background:#fff; border-radius:14px; padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.06); margin-bottom:20px;">
+          <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+            <span style="background:#e0e7ff; color:#3730a3; font-size:12px; padding:3px 10px; border-radius:4px; font-weight:500;">${moduleLabel}</span>
+            <span style="background:#fef3c7; color:#92400e; font-size:12px; padding:3px 10px; border-radius:4px; font-weight:500;">${typeLabel}</span>
+            <span style="color:#6b7280; font-size:12px;">第 ${idx + 1} 题</span>
+          </div>
+          <div style="font-size:17px; line-height:1.8; color:#1f2937; font-weight:500;">${escapeHtml(q.prompt)}</div>
+          ${optionsHtml}
+          ${resultHtml}
+        </div>
+      `;
+    }
+
+    function answerChoice(qid, choiceIdx) {
+      fetch('/api/questions/' + qid + '/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer: choiceIdx })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          answeredIds[qid] = { correct: res.correct, choice: choiceIdx, userAnswer: String.fromCharCode(65 + choiceIdx) };
+          renderQuestions();
+          showToast(res.correct ? '回答正确！' : '回答错误', res.correct ? 'success' : 'error');
+        }
+      });
+    }
+
+    function answerBlank(qid) {
+      const val = document.getElementById('blank-' + qid).value.trim();
+      if (!val) { showToast('请输入答案', 'info'); return; }
+      fetch('/api/questions/' + qid + '/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer: val })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          answeredIds[qid] = { correct: res.correct, userAnswer: val };
+          renderQuestions();
+          showToast(res.correct ? '回答正确！' : '回答错误', res.correct ? 'success' : 'error');
+        }
+      });
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    checkAuth();
   </script>
 </body>
 </html>

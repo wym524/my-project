@@ -3,96 +3,187 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>管理后台 - 雅思学习空间</title>
+  <title>管理员控制台 - 雅思学习空间</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="page-container">
     <div class="page-topbar">
-      <div class="brand">📚 雅思学习空间 <span class="admin-badge-red" style="margin-left:10px;">管理员</span></div>
+      <div class="brand">🛡️ 雅思学习空间 - 管理员控制台</div>
       <div class="right-group">
-        <span class="username" id="username">--</span>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <span class="admin-badge-red">管理员</span>
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
       </div>
     </div>
 
-    <h2 class="page-title">管理员操作</h2>
-    <p class="page-subtitle">管理学习内容和用户任务</p>
+    <h1 class="page-title">🛡️ 管理员主页</h1>
+    <p class="page-subtitle">管理学习内容、任务分配和系统配置</p>
 
     <div class="module-grid">
-      <a class="module-card" href="admin-tasks.html">
-        <div class="icon">📋</div>
-        <div class="mc-title">任务管理</div>
-        <div class="mc-desc">创建学习任务，分配给用户，跟踪完成情况</div>
+      <a href="admin-tasks.html" class="module-card" style="text-decoration:none; cursor:pointer;">
+        <div class="icon" style="font-size:36px; margin-bottom:12px;">📋</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">任务管理</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">创建学习任务、分配给用户、查看完成情况</div>
       </a>
-      <a class="module-card" href="words.html">
-        <div class="icon">📖</div>
-        <div class="mc-title">单词模块</div>
-        <div class="mc-desc">查看/添加/编辑单词库</div>
+
+      <div class="module-card" style="cursor:pointer;" onclick="manageWords()">
+        <div style="font-size:36px; margin-bottom:12px;">📖</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">单词管理</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加单词、管理词库内容</div>
+      </div>
+
+      <div class="module-card" style="cursor:pointer;" onclick="manageQuestions()">
+        <div style="font-size:36px; margin-bottom:12px;">📝</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">题目管理</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加真题、选择题和填空题</div>
+      </div>
+
+      <div class="module-card" style="cursor:pointer;" onclick="manageSpeaking()">
+        <div style="font-size:36px; margin-bottom:12px;">🎤</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">口语话题</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加口语话题和参考回答</div>
+      </div>
+
+      <div class="module-card" style="cursor:pointer;" onclick="manageWriting()">
+        <div style="font-size:36px; margin-bottom:12px;">✍️</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">写作题目</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加作文题目、思路和范文</div>
+      </div>
+
+      <a href="ai-config.html" class="module-card" style="text-decoration:none; cursor:pointer;">
+        <div style="font-size:36px; margin-bottom:12px;">🤖</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">AI 配置</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">设置 AI 提供商、API Key 和基础 URL</div>
       </a>
-      <a class="module-card" href="questions.html">
-        <div class="icon">✏️</div>
-        <div class="mc-title">真题模块</div>
-        <div class="mc-desc">查看/添加/编辑真题题库</div>
+
+      <a href="learning.html" class="module-card" style="text-decoration:none; cursor:pointer;">
+        <div style="font-size:36px; margin-bottom:12px;">📊</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">学习统计</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">查看整体学习数据和统计信息</div>
       </a>
-      <a class="module-card" href="speaking.html">
-        <div class="icon">🎤</div>
-        <div class="mc-title">口语模块</div>
-        <div class="mc-desc">查看/添加口语话题</div>
-      </a>
-      <a class="module-card" href="writing.html">
-        <div class="icon">📝</div>
-        <div class="mc-title">写作模块</div>
-        <div class="mc-desc">查看/添加写作题目</div>
-      </a>
+
+      <div class="module-card" style="cursor:pointer;" onclick="goToStudent()">
+        <div style="font-size:36px; margin-bottom:12px;">🎓</div>
+        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">学生视图</div>
+        <div style="color:#6b7280; font-size:13px; line-height:1.6;">切换到学生主页体验</div>
+      </div>
     </div>
 
-    <h2 class="page-title" style="margin-top: 40px;">系统概览</h2>
-    <div id="statsBox" class="stats-grid">
-      <div class="loading-text">加载中...</div>
+    <div style="margin-top:40px;">
+      <h2 class="section-title">📋 批量添加内容</h2>
+      <div class="panel" style="margin-top:16px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:16px;">
+          <button class="btn-secondary" onclick="showBatchForm('words')">📖 批量添加单词</button>
+          <button class="btn-secondary" onclick="showBatchForm('questions')">📝 批量添加题目</button>
+          <button class="btn-secondary" onclick="showBatchForm('speaking')">🎤 批量添加口语</button>
+          <button class="btn-secondary" onclick="showBatchForm('writing')">✍️ 批量添加写作</button>
+        </div>
+
+        <div id="batchFormContainer" style="display:none;">
+          <h3 style="font-size:16px; color:#1e3a8a; margin-bottom:12px;" id="batchFormTitle">批量添加</h3>
+          <p style="color:#6b7280; font-size:13px; margin-bottom:12px;" id="batchFormHint">请以 JSON 数组格式粘贴内容</p>
+          <textarea id="batchContent" rows="10" style="width:100%; padding:12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:13px; font-family:monospace; outline:none;" placeholder='[{"word": "example", "meaning": "例子", "example": "This is an example.", "category": "高频"}]'></textarea>
+          <div style="margin-top:12px; display:flex; gap:12px;">
+            <button class="btn-primary" onclick="submitBatch()">✓ 提交</button>
+            <button class="btn-secondary" onclick="document.getElementById('batchFormContainer').style.display='none'">取消</button>
+          </div>
+        </div>
+
+        <div id="batchResult" style="margin-top:16px;"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    const usernameEl = document.getElementById('username');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const statsBox = document.getElementById('statsBox');
+    let currentUser = null;
+    let currentBatchType = '';
 
-    fetch('/api/me')
-      .then(function(r) {
-        if (!r.ok) { window.location.href = '/login.html'; return null; }
-        return r.json();
-      })
-      .then(function(data) {
-        if (!data || !data.loggedIn || data.role !== 'admin') {
-          window.location.href = '/login.html';
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        if (data.role !== 'admin') {
+          alert('无权访问管理员页面，正在跳转...');
+          window.location.href = 'dashboard.html';
           return;
         }
-        usernameEl.textContent = data.username;
-        loadStats();
-      });
-
-    function loadStats() {
-      fetch('/api/stats')
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (!data || !data.data) return;
-          const d = data.data;
-          const rate = d.answeredQuestions > 0 ? Math.round((d.correctQuestions / d.answeredQuestions) * 100) : 0;
-          statsBox.innerHTML = `
-            <div class="stat-card"><div class="num">${d.totalTasks || 0}</div><div class="label">总任务数</div></div>
-            <div class="stat-card"><div class="num">${d.completedTasks || 0}</div><div class="label">已完成任务</div></div>
-            <div class="stat-card"><div class="num">${d.knownWords || 0}</div><div class="label">已掌握单词</div></div>
-            <div class="stat-card"><div class="num">${d.answeredQuestions || 0}</div><div class="label">完成题目</div></div>
-            <div class="stat-card"><div class="num">${rate}%</div><div class="label">正确率</div></div>
-          `;
-        });
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+      }).catch(() => { window.location.href = 'login.html'; });
     }
 
-    logoutBtn.addEventListener('click', function() {
-      fetch('/api/logout', { method: 'POST' })
-        .then(function() { window.location.href = '/login.html'; });
-    });
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
+
+    function manageWords() { showBatchForm('words'); window.scrollTo({ top: document.getElementById('batchFormContainer').offsetTop - 100, behavior: 'smooth' }); }
+    function manageQuestions() { showBatchForm('questions'); window.scrollTo({ top: document.getElementById('batchFormContainer').offsetTop - 100, behavior: 'smooth' }); }
+    function manageSpeaking() { showBatchForm('speaking'); window.scrollTo({ top: document.getElementById('batchFormContainer').offsetTop - 100, behavior: 'smooth' }); }
+    function manageWriting() { showBatchForm('writing'); window.scrollTo({ top: document.getElementById('batchFormContainer').offsetTop - 100, behavior: 'smooth' }); }
+
+    function showBatchForm(type) {
+      currentBatchType = type;
+      const titles = { words: '📖 批量添加单词', questions: '📝 批量添加题目', speaking: '🎤 批量添加口语话题', writing: '✍️ 批量添加写作题目' };
+      const hints = {
+        words: '格式: JSON 数组，每项包含 word(单词), meaning(释义), example(例句,可选), category(分类,可选)',
+        questions: '格式: JSON 数组，每项包含 module(模块:reading/listening), type(类型:choice/blank), prompt(题目), options(选项数组,仅选择题), answer(答案), explanation(解析,可选), difficulty(难度1-5,可选)',
+        speaking: '格式: JSON 数组，每项包含 topic(话题), part(part1/part2/part3), prompts(提示问题数组,可选), sample_answer(参考回答,可选)',
+        writing: '格式: JSON 数组，每项包含 type(类型:大作文/小作文), prompt(题目), sample_outline(参考思路对象/字符串,可选), sample_essay(范文,可选)'
+      };
+      const placeholders = {
+        words: '[{"word": "abandon", "meaning": "放弃", "example": "He abandoned his family.", "category": "高频"}]',
+        questions: '[{"module": "reading", "type": "choice", "prompt": "What is the main idea?", "options": ["A", "B", "C", "D"], "answer": "0", "explanation": "解析内容", "difficulty": 2}]',
+        speaking: '[{"topic": "Describe your favorite book", "part": "part2", "prompts": ["What is it?", "Why do you like it?"], "sample_answer": "参考回答内容"}]',
+        writing: '[{"type": "大作文", "prompt": "Some people believe technology makes life complex...", "sample_outline": {"introduction": "...", "paragraph1": "..."}, "sample_essay": "范文内容"}]'
+      };
+      document.getElementById('batchFormTitle').textContent = titles[type];
+      document.getElementById('batchFormHint').textContent = hints[type];
+      document.getElementById('batchContent').placeholder = placeholders[type];
+      document.getElementById('batchFormContainer').style.display = 'block';
+    }
+
+    function submitBatch() {
+      const content = document.getElementById('batchContent').value.trim();
+      if (!content) { showToast('请输入内容', 'error'); return; }
+      let items;
+      try { items = JSON.parse(content); }
+      catch (e) { showToast('JSON 格式错误: ' + e.message, 'error'); return; }
+      if (!Array.isArray(items)) { showToast('必须是 JSON 数组格式', 'error'); return; }
+      document.getElementById('batchResult').innerHTML = '<div style="padding:14px; background:#f0f9ff; border-radius:8px; text-align:center; color:#1e40af;">⏳ 正在提交...</div>';
+      const urlMap = { words: '/api/words/batch', questions: '/api/questions/batch', speaking: '/api/speaking/batch', writing: '/api/writing/batch' };
+      fetch(urlMap[currentBatchType], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: items })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          document.getElementById('batchResult').innerHTML = `<div style="padding:14px; background:#ecfdf5; border-radius:8px; color:#065f46; border-left:4px solid #10b981;">✅ 成功添加 ${res.count || items.length} 条内容</div>`;
+          document.getElementById('batchContent').value = '';
+          showToast('批量添加成功！', 'success');
+        } else {
+          document.getElementById('batchResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ ${escapeHtml(res.message || '添加失败')}</div>`;
+        }
+      }).catch(() => {
+        document.getElementById('batchResult').innerHTML = '<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ 请求错误</div>';
+      });
+    }
+
+    function goToStudent() { window.location.href = 'dashboard.html'; }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    checkAuth();
   </script>
 </body>
 </html>

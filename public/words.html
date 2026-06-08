@@ -9,209 +9,196 @@
 <body>
   <div class="page-container">
     <div class="page-topbar">
-      <div class="brand">📖 背单词</div>
+      <div class="brand">📚 雅思学习空间</div>
       <div class="right-group">
-        <a href="learning.html" style="color:#fff;font-size:13px;text-decoration:none;">← 返回学习空间</a>
-        <span class="username" id="username">--</span>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
       </div>
     </div>
+
+    <h1 class="page-title">📖 背单词</h1>
+    <p class="page-subtitle">分模块学习雅思高频词汇，掌握后可标记为"已掌握"</p>
 
     <div class="filter-bar">
-      <div class="filter-item">
-        <label>分类：</label>
-        <select id="categorySelect">
-          <option value="">全部</option>
-          <option value="高频">高频</option>
-          <option value="学术">学术</option>
-          <option value="写作">写作</option>
-          <option value="听力">听力</option>
-          <option value="阅读">阅读</option>
-          <option value="口语">口语</option>
-        </select>
-      </div>
-      <div class="filter-item">
-        <label>每页：</label>
-        <select id="pageSizeSelect">
-          <option value="10">10</option>
-          <option value="20" selected>20</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
-        </select>
-      </div>
-      <button class="btn-primary btn-sm" id="applyBtn">应用筛选</button>
+      <label><strong>筛选分类:</strong></label>
+      <select id="categoryFilter">
+        <option value="">全部</option>
+        <option value="高频">高频</option>
+        <option value="学术">学术</option>
+        <option value="写作">写作</option>
+        <option value="口语">口语</option>
+        <option value="阅读">阅读</option>
+        <option value="听力">听力</option>
+      </select>
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="showKnown"> 显示已掌握
+      </label>
+      <button class="btn-primary btn-sm" onclick="applyFilter()">应用筛选</button>
+      <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
     </div>
 
-    <div class="word-card" id="wordCard" style="display:none;">
-      <span class="category-badge" id="wordCategory">--</span>
-      <div class="word" id="wordText">--</div>
-      <div class="phonetic" id="wordPhonetic">/ -- /</div>
-      <div class="meaning" id="wordMeaning">--</div>
-      <div class="example" id="wordExample">--</div>
-      <div class="action-row">
-        <button class="btn-danger" id="unknownBtn">❌ 不认识</button>
-        <button class="btn-secondary" id="knownBtn">🤔 认识</button>
-        <button class="btn-success" id="masteredBtn">✅ 已掌握</button>
+    <div class="split-layout">
+      <div class="list-panel">
+        <div class="section-title" style="margin-bottom:12px; font-size:15px;">单词列表</div>
+        <div id="wordList" style="max-height:65vh; overflow-y:auto;">
+          <div class="loading-text">加载中...</div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-secondary btn-sm" onclick="prevWord()">← 上一个</button>
+          <button class="btn-secondary btn-sm" onclick="nextWord()">下一个 →</button>
+        </div>
       </div>
-      <div class="nav-row">
-        <button class="btn-secondary btn-sm" id="prevBtn">← 上一个</button>
-        <button class="btn-secondary btn-sm" id="nextBtn">下一个 →</button>
-      </div>
-    </div>
 
-    <div class="progress-wrap">
-      <div class="progress-bar">
-        <div class="progress-fill" id="progressFill" style="width:0%;"></div>
+      <div class="detail-panel">
+        <div id="wordDetail">
+          <div class="empty-state" style="text-align:center; padding:60px 20px;">
+            <div style="font-size:48px; margin-bottom:12px;">👈</div>
+            <p>请从左侧选择一个单词开始学习</p>
+          </div>
+        </div>
       </div>
-      <div class="progress-text" id="progressText">0 / 0</div>
-    </div>
-
-    <div id="emptyPanel" class="panel" style="display:none;text-align:center;">
-      <div class="empty-tip">暂无单词数据，请尝试其他筛选</div>
     </div>
   </div>
 
   <script>
-    var usernameEl = document.getElementById('username');
-    var logoutBtn = document.getElementById('logoutBtn');
-    var categorySelect = document.getElementById('categorySelect');
-    var pageSizeSelect = document.getElementById('pageSizeSelect');
-    var applyBtn = document.getElementById('applyBtn');
-    var wordCard = document.getElementById('wordCard');
-    var wordText = document.getElementById('wordText');
-    var wordCategory = document.getElementById('wordCategory');
-    var wordMeaning = document.getElementById('wordMeaning');
-    var wordExample = document.getElementById('wordExample');
-    var prevBtn = document.getElementById('prevBtn');
-    var nextBtn = document.getElementById('nextBtn');
-    var unknownBtn = document.getElementById('unknownBtn');
-    var knownBtn = document.getElementById('knownBtn');
-    var masteredBtn = document.getElementById('masteredBtn');
-    var progressFill = document.getElementById('progressFill');
-    var progressText = document.getElementById('progressText');
-    var emptyPanel = document.getElementById('emptyPanel');
+    let words = [];
+    let allWords = [];
+    let knownIds = new Set();
+    let currentIndex = 0;
+    let currentUser = null;
 
-    var words = [];
-    var currentIndex = 0;
-
-    function showToast(msg, type) {
-      var t = document.createElement('div');
-      t.className = 'toast toast-' + (type || 'info');
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(function() { t.remove(); }, 2000);
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        loadWords();
+      }).catch(() => { window.location.href = 'login.html'; });
     }
 
-    fetch('/api/me')
-      .then(function(r) {
-        if (!r.ok) { window.location.href = '/login.html'; return null; }
-        return r.json();
-      })
-      .then(function(data) {
-        if (!data) return;
-        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
-        usernameEl.textContent = data.username;
-        loadWords();
-      })
-      .catch(function() { window.location.href = '/login.html'; });
-
-    logoutBtn.addEventListener('click', function() {
-      fetch('/api/logout', { method: 'POST' })
-        .then(function() { window.location.href = '/login.html'; });
-    });
-
-    applyBtn.addEventListener('click', function() {
-      currentIndex = 0;
-      loadWords();
-    });
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
 
     function loadWords() {
-      var cat = categorySelect.value;
-      var pageSize = Number(pageSizeSelect.value);
-      var url = '/api/words?limit=' + pageSize;
-      if (cat) url += '&category=' + encodeURIComponent(cat);
+      const cat = document.getElementById('categoryFilter').value;
+      const url = '/api/words' + (cat ? '?category=' + encodeURIComponent(cat) : '');
+      fetch(url).then(r => r.json()).then(res => {
+        if (res.success) {
+          allWords = res.data || [];
+          applyFilter();
+        }
+      });
+    }
 
-      fetch(url)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.success || !data.data || data.data.length === 0) {
-            words = [];
-            wordCard.style.display = 'none';
-            emptyPanel.style.display = 'block';
-            progressFill.style.width = '0%';
-            progressText.textContent = '0 / 0';
-            return;
+    function applyFilter() {
+      const showKnown = document.getElementById('showKnown').checked;
+      if (showKnown) {
+        words = allWords.slice();
+      } else {
+        words = allWords.filter(w => !knownIds.has(w.id));
+      }
+      renderList();
+      if (words.length > 0) {
+        currentIndex = 0;
+        showWord(words[0].id);
+      } else {
+        document.getElementById('wordDetail').innerHTML = '<div class="empty-state">没有可学习的单词</div>';
+      }
+    }
+
+    function renderList() {
+      const container = document.getElementById('wordList');
+      if (words.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无单词</div>';
+        return;
+      }
+      container.innerHTML = words.map((w, idx) => `
+        <div class="list-item ${currentIndex === idx ? 'active' : ''}" onclick="selectWord(${idx})" style="cursor:pointer; padding:10px 12px; margin-bottom:4px; border-radius:6px; transition:all 0.2s;">
+          <div style="font-weight:600; color:#1e40af; font-size:15px;">${w.word}</div>
+          <div class="item-sub" style="color:#6b7280; font-size:12px; margin-top:2px;">${w.meaning}</div>
+          ${knownIds.has(w.id) ? '<span style="display:inline-block; font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:3px; margin-top:2px;">已掌握</span>' : ''}
+        </div>
+      `).join('');
+    }
+
+    function selectWord(idx) {
+      currentIndex = idx;
+      showWord(words[idx].id);
+      renderList();
+    }
+
+    function showWord(id) {
+      const w = allWords.find(x => x.id === id);
+      if (!w) return;
+      const container = document.getElementById('wordDetail');
+      container.innerHTML = `
+        <div class="word-card">
+          <span class="category-badge">${w.category || '通用'}</span>
+          <div style="font-size:40px; font-weight:700; color:#1e40af; margin:16px 0 8px; letter-spacing:1px;">${w.word}</div>
+          <div style="color:#4b5563; font-size:16px; margin-bottom:16px;">📘 ${w.meaning}</div>
+          ${w.example ? `<div style="background:#f9fafb; padding:14px 18px; border-radius:8px; border-left:3px solid #3b82f6; color:#374151; font-style:italic; line-height:1.7; font-size:14px;">💬 "${w.example}"</div>` : ''}
+          <div style="margin-top:24px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')">🔊 朗读</button>
+            <button class="btn-success" onclick="markKnown(${w.id})">✅ 已掌握</button>
+            <button class="btn-secondary" onclick="nextWord()">❌ 不认识</button>
+          </div>
+        </div>
+        <div style="margin-top:16px; display:flex; justify-content:space-between; gap:12px;">
+          <button class="btn-secondary" onclick="prevWord()">← 上一个</button>
+          <span style="color:#6b7280; font-size:13px; align-self:center;">${currentIndex + 1} / ${words.length}</span>
+          <button class="btn-secondary" onclick="nextWord()">下一个 →</button>
+        </div>
+      `;
+    }
+
+    function playPronounce(word) {
+      if ('speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(word);
+        u.lang = 'en-US';
+        u.rate = 0.9;
+        window.speechSynthesis.speak(u);
+      } else {
+        showToast('您的浏览器不支持语音朗读', 'info');
+      }
+    }
+
+    function markKnown(id) {
+      fetch('/api/words/' + id + '/known', { method: 'POST' })
+        .then(r => r.json()).then(res => {
+          if (res.success) {
+            knownIds.add(id);
+            showToast('已标记为掌握 ✓', 'success');
+            applyFilter();
+          } else {
+            showToast(res.message || '操作失败', 'error');
           }
-          words = data.data;
-          emptyPanel.style.display = 'none';
-          wordCard.style.display = 'block';
-          if (currentIndex >= words.length) currentIndex = 0;
-          renderWord();
-        })
-        .catch(function() {
-          emptyPanel.style.display = 'block';
-          emptyPanel.innerHTML = '<div class="empty-tip">加载失败</div>';
         });
     }
 
-    function renderWord() {
-      if (words.length === 0) return;
-      var w = words[currentIndex];
-      wordText.textContent = w.word || '';
-      wordCategory.textContent = w.category || '未分类';
-      wordMeaning.textContent = w.meaning || '';
-      wordExample.textContent = w.example || '（暂无例句）';
-      var pct = words.length > 0 ? Math.round(((currentIndex + 1) / words.length) * 100) : 0;
-      progressFill.style.width = pct + '%';
-      progressText.textContent = (currentIndex + 1) + ' / ' + words.length;
-    }
-
-    prevBtn.addEventListener('click', function() {
+    function prevWord() {
       if (words.length === 0) return;
       currentIndex = (currentIndex - 1 + words.length) % words.length;
-      renderWord();
-    });
+      showWord(words[currentIndex].id);
+      renderList();
+    }
 
-    nextBtn.addEventListener('click', function() {
+    function nextWord() {
       if (words.length === 0) return;
       currentIndex = (currentIndex + 1) % words.length;
-      renderWord();
-    });
+      showWord(words[currentIndex].id);
+      renderList();
+    }
 
-    unknownBtn.addEventListener('click', function() {
-      if (words.length === 0) return;
-      currentIndex = (currentIndex + 1) % words.length;
-      renderWord();
-      showToast('标记为需要复习', 'info');
-    });
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
 
-    knownBtn.addEventListener('click', function() {
-      if (words.length === 0) return;
-      currentIndex = (currentIndex + 1) % words.length;
-      renderWord();
-      showToast('已记录为认识', 'info');
-    });
-
-    masteredBtn.addEventListener('click', function() {
-      if (words.length === 0) return;
-      var word = words[currentIndex];
-      fetch('/api/words/' + word.id + '/known', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.success) {
-            showToast('已标记为已掌握 ✓', 'success');
-          } else {
-            showToast(data.message || '操作失败', 'error');
-          }
-          currentIndex = (currentIndex + 1) % words.length;
-          renderWord();
-        })
-        .catch(function() {
-          currentIndex = (currentIndex + 1) % words.length;
-          renderWord();
-          showToast('网络异常', 'error');
-        });
-    });
+    checkAuth();
   </script>
 </body>
 </html>

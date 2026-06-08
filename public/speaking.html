@@ -9,191 +9,290 @@
 <body>
   <div class="page-container">
     <div class="page-topbar">
-      <div class="brand">🎤 口语练习</div>
+      <div class="brand">📚 雅思学习空间</div>
       <div class="right-group">
-        <a href="learning.html" style="color:#fff;font-size:13px;text-decoration:none;">← 返回学习空间</a>
-        <span class="username" id="username">--</span>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
       </div>
     </div>
 
+    <h1 class="page-title">🎤 口语练习</h1>
+    <p class="page-subtitle">雅思口语 Part 1/2/3 话题训练，录音回放与 AI 评分</p>
+
     <div class="filter-bar">
-      <div class="filter-item">
-        <label>Part：</label>
-        <select id="partSelect">
-          <option value="">全部</option>
-          <option value="part1">Part 1</option>
-          <option value="part2">Part 2</option>
-          <option value="part3">Part 3</option>
-        </select>
-      </div>
-      <button class="btn-primary btn-sm" id="applyBtn">应用筛选</button>
+      <label><strong>Part:</strong></label>
+      <select id="partFilter" onchange="loadTopics()">
+        <option value="">全部</option>
+        <option value="part1">Part 1</option>
+        <option value="part2">Part 2</option>
+        <option value="part3">Part 3</option>
+      </select>
+      <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
     </div>
 
     <div class="split-layout">
-      <div class="list-panel" id="topicList">
-        <div class="empty-tip">加载中...</div>
+      <div class="list-panel">
+        <div class="section-title" style="margin-bottom:12px; font-size:15px;">话题列表</div>
+        <div id="topicList" style="max-height:65vh; overflow-y:auto;">
+          <div class="loading-text">加载中...</div>
+        </div>
       </div>
-      <div class="detail-panel" id="topicDetail">
-        <div class="empty-tip">请从左侧选择一个话题</div>
+
+      <div class="detail-panel">
+        <div id="topicDetail">
+          <div class="empty-state" style="text-align:center; padding:60px 20px;">
+            <div style="font-size:48px; margin-bottom:12px;">👈</div>
+            <p>请从左侧选择一个口语话题开始练习</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <script>
-    var usernameEl = document.getElementById('username');
-    var logoutBtn = document.getElementById('logoutBtn');
-    var partSelect = document.getElementById('partSelect');
-    var applyBtn = document.getElementById('applyBtn');
-    var topicList = document.getElementById('topicList');
-    var topicDetail = document.getElementById('topicDetail');
-    var topics = [];
-    var currentTopic = null;
+  <!-- 录音对话框 -->
+  <div id="recordingModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:32px; border-radius:14px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <h2 style="color:#1e3a8a; margin-bottom:16px; font-size:20px;">🎙️ 开始录音练习</h2>
+      <div id="recordStatus" style="margin-bottom:16px; padding:16px; background:#f0f9ff; border-radius:8px; text-align:center; color:#1e40af; font-size:14px;">
+        准备就绪，点击"开始录音"按钮
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-bottom:16px;">
+        <button id="startRecordBtn" class="btn-primary" onclick="startRecording()">● 开始录音</button>
+        <button id="stopRecordBtn" class="btn-danger" onclick="stopRecording()" style="display:none;">■ 停止录音</button>
+      </div>
+      <div id="audioPlayerContainer" style="margin-bottom:16px; display:none;">
+        <div style="font-size:13px; color:#6b7280; margin-bottom:8px; text-align:center;">回放您的录音：</div>
+        <audio id="audioPlayer" controls style="width:100%;"></audio>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:13px; color:#374151; display:block; margin-bottom:6px;">或手动输入回答内容（用于AI评分）:</label>
+        <textarea id="manualAnswer" rows="5" style="width:100%; padding:10px 12px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical;" placeholder="Please describe your answer here..."></textarea>
+      </div>
+      <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn-secondary" onclick="closeModal()">取消</button>
+        <button class="btn-primary" onclick="submitAIEvaluate()">🤖 AI 评分</button>
+      </div>
+      <div id="evalResult" style="margin-top:16px;"></div>
+    </div>
+  </div>
 
-    function showToast(msg, type) {
-      var t = document.createElement('div');
-      t.className = 'toast toast-' + (type || 'info');
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(function() { t.remove(); }, 2000);
+  <script>
+    let topics = [];
+    let currentTopic = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let audioBlob = null;
+    let currentUser = null;
+
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        loadTopics();
+      }).catch(() => { window.location.href = 'login.html'; });
     }
 
-    fetch('/api/me')
-      .then(function(r) {
-        if (!r.ok) { window.location.href = '/login.html'; return null; }
-        return r.json();
-      })
-      .then(function(data) {
-        if (!data) return;
-        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
-        usernameEl.textContent = data.username;
-        loadTopics();
-      })
-      .catch(function() { window.location.href = '/login.html'; });
-
-    logoutBtn.addEventListener('click', function() {
-      fetch('/api/logout', { method: 'POST' })
-        .then(function() { window.location.href = '/login.html'; });
-    });
-
-    applyBtn.addEventListener('click', loadTopics);
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
 
     function loadTopics() {
-      var part = partSelect.value;
-      var url = '/api/speaking?limit=100';
-      if (part) url += '&part=' + encodeURIComponent(part);
-      fetch(url)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.success || !data.data || data.data.length === 0) {
-            topics = [];
-            topicList.innerHTML = '<div class="empty-tip">暂无话题</div>';
-            topicDetail.innerHTML = '<div class="empty-tip">暂无话题</div>';
-            return;
-          }
-          topics = data.data;
-          renderTopicList();
-          selectTopic(topics[0]);
-        })
-        .catch(function() {
-          topicList.innerHTML = '<div class="empty-tip">加载失败</div>';
-        });
-    }
-
-    function renderTopicList() {
-      var html = '';
-      topics.forEach(function(t, i) {
-        var active = currentTopic && currentTopic.id === t.id ? 'active' : '';
-        var partText = t.part ? t.part.toUpperCase() : 'PART';
-        html += '<div class="list-item ' + active + '" data-idx="' + i + '">' +
-          '<div>' + escapeHtml(t.topic) + '</div>' +
-          '<div class="item-sub">' + partText + '</div>' +
-          '</div>';
-      });
-      topicList.innerHTML = html;
-      var items = topicList.querySelectorAll('.list-item');
-      items.forEach(function(item) {
-        item.addEventListener('click', function() {
-          var idx = Number(item.getAttribute('data-idx'));
-          selectTopic(topics[idx]);
-          renderTopicList();
-        });
+      const part = document.getElementById('partFilter').value;
+      let url = '/api/speaking';
+      if (part) url += '?part=' + encodeURIComponent(part);
+      fetch(url).then(r => r.json()).then(res => {
+        if (res.success) {
+          topics = res.data || [];
+          renderList();
+        }
       });
     }
 
-    function selectTopic(t) {
-      currentTopic = t;
-      var partText = t.part ? t.part.toUpperCase() : 'PART';
-      var html = '';
-      html += '<div class="d-title">' + escapeHtml(t.topic) + '</div>';
-      html += '<div class="d-meta">' +
-        '<span class="tag tag-module">' + partText + '</span>' +
-        '</div>';
+    function renderList() {
+      const container = document.getElementById('topicList');
+      if (topics.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无话题</div>';
+        return;
+      }
+      container.innerHTML = topics.map((t, idx) => `
+        <div class="list-item ${currentTopic && currentTopic.id === t.id ? 'active' : ''}" onclick="selectTopic(${idx})" style="cursor:pointer; padding:12px; margin-bottom:6px; border-radius:8px;">
+          <span style="background:#e0e7ff; color:#3730a3; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:500; display:inline-block; margin-bottom:6px;">${t.part || 'Part'}</span>
+          <div style="font-size:14px; color:#1f2937; font-weight:500; line-height:1.5;">${escapeHtml(t.topic)}</div>
+        </div>
+      `).join('');
+    }
 
+    function selectTopic(idx) {
+      currentTopic = topics[idx];
+      renderList();
+      renderTopicDetail();
+    }
+
+    function renderTopicDetail() {
+      const t = currentTopic;
+      const container = document.getElementById('topicDetail');
+      let promptsHtml = '';
       if (t.prompts && t.prompts.length > 0) {
-        html += '<div class="d-section-title">💡 提示问题</div>';
-        html += '<ul class="prompt-list">';
-        t.prompts.forEach(function(p) {
-          html += '<li>' + escapeHtml(p) + '</li>';
-        });
-        html += '</ul>';
+        promptsHtml = `
+          <div style="margin-top:20px;">
+            <h3 style="font-size:15px; font-weight:600; color:#1f2937; margin-bottom:10px; padding-left:10px; border-left:3px solid #3b82f6;">💭 提示问题</h3>
+            <ul style="list-style:none; padding:0; margin:0;">
+              ${t.prompts.map(p => `<li style="padding:6px 0 6px 24px; position:relative; color:#374151; font-size:14px; line-height:1.6;"><span style="position:absolute; left:8px; color:#3b82f6; font-weight:bold;">•</span>${escapeHtml(p)}</li>`).join('')}
+            </ul>
+          </div>
+        `;
       }
 
+      let sampleHtml = '';
       if (t.sample_answer) {
-        html += '<div class="collapsible">' +
-          '<button class="collapse-toggle" id="sampleToggle">📖 查看参考回答 ▾</button>' +
-          '<div class="collapse-content" id="sampleContent">' +
-          '<div class="sample-box">' + escapeHtml(t.sample_answer) + '</div>' +
-          '</div>' +
-          '</div>';
+        sampleHtml = `
+          <div style="margin-top:20px;">
+            <button onclick="toggleSample()" style="background:#eef2ff; color:#4338ca; border:none; padding:10px 16px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:500;">
+              📝 查看参考答案
+            </button>
+            <div id="sampleContent" style="margin-top:10px; padding:16px; background:#f9fafb; border-radius:8px; border-left:3px solid #10b981; color:#374151; font-size:14px; line-height:1.8; display:none; white-space:pre-wrap;">${escapeHtml(t.sample_answer)}</div>
+          </div>
+        `;
       }
 
-      html += '<div style="margin-top:24px;text-align:center;">' +
-        '<button class="btn-primary" id="practiceBtn">🎤 开始练习</button>' +
-        '</div>';
+      container.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <span style="background:#dbeafe; color:#1e40af; font-size:12px; padding:4px 12px; border-radius:4px; font-weight:600; display:inline-block;">${t.part || 'Part'}</span>
+        </div>
+        <h2 style="font-size:22px; font-weight:600; color:#1e3a8a; line-height:1.5; margin-bottom:16px;">${escapeHtml(t.topic)}</h2>
+        ${promptsHtml}
+        ${sampleHtml}
+        <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap;">
+          <button class="btn-primary" onclick="openRecording()">🎤 开始练习并录音</button>
+          <button class="btn-success" onclick="markPracticed()">✓ 标记已练习</button>
+        </div>
+      `;
+    }
 
-      html += '<div id="practiceLog" style="margin-top:16px;"></div>';
+    function toggleSample() {
+      const c = document.getElementById('sampleContent');
+      c.style.display = c.style.display === 'none' ? 'block' : 'none';
+    }
 
-      topicDetail.innerHTML = html;
+    function openRecording() {
+      audioChunks = [];
+      audioBlob = null;
+      document.getElementById('manualAnswer').value = '';
+      document.getElementById('audioPlayerContainer').style.display = 'none';
+      document.getElementById('startRecordBtn').style.display = 'inline-block';
+      document.getElementById('stopRecordBtn').style.display = 'none';
+      document.getElementById('recordStatus').textContent = '准备就绪，点击"开始录音"按钮';
+      document.getElementById('recordStatus').style.background = '#f0f9ff';
+      document.getElementById('recordStatus').style.color = '#1e40af';
+      document.getElementById('evalResult').innerHTML = '';
+      const player = document.getElementById('audioPlayer');
+      if (player) player.src = '';
+      const modal = document.getElementById('recordingModal');
+      modal.style.display = 'flex';
+    }
 
-      var toggle = document.getElementById('sampleToggle');
-      if (toggle) {
-        toggle.addEventListener('click', function() {
-          var content = document.getElementById('sampleContent');
-          content.classList.toggle('open');
-          toggle.textContent = content.classList.contains('open') ? '📖 收起参考回答 ▴' : '📖 查看参考回答 ▾';
-        });
+    function closeModal() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        try { mediaRecorder.stop(); } catch (e) {}
       }
+      document.getElementById('recordingModal').style.display = 'none';
+    }
 
-      var practiceBtn = document.getElementById('practiceBtn');
-      practiceBtn.addEventListener('click', function() {
-        markAsPracticed(t);
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const player = document.getElementById('audioPlayer');
+          player.src = audioUrl;
+          document.getElementById('audioPlayerContainer').style.display = 'block';
+          stream.getTracks().forEach(track => track.stop());
+        };
+        mediaRecorder.start();
+        document.getElementById('startRecordBtn').style.display = 'none';
+        document.getElementById('stopRecordBtn').style.display = 'inline-block';
+        document.getElementById('recordStatus').textContent = '🔴 正在录音中...请大声说出来！';
+        document.getElementById('recordStatus').style.background = '#fef2f2';
+        document.getElementById('recordStatus').style.color = '#991b1b';
+      } catch (err) {
+        document.getElementById('recordStatus').textContent = '无法访问麦克风: ' + err.message + '。您可以使用下方文本框手动输入。';
+        document.getElementById('recordStatus').style.background = '#fef3c7';
+        document.getElementById('recordStatus').style.color = '#92400e';
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        document.getElementById('startRecordBtn').style.display = 'inline-block';
+        document.getElementById('stopRecordBtn').style.display = 'none';
+        document.getElementById('recordStatus').textContent = '✓ 录音完成，可回放或直接提交AI评分';
+        document.getElementById('recordStatus').style.background = '#ecfdf5';
+        document.getElementById('recordStatus').style.color = '#065f46';
+      }
+    }
+
+    function submitAIEvaluate() {
+      const manualAnswer = document.getElementById('manualAnswer').value.trim();
+      let answerText = manualAnswer;
+      if (!answerText && audioBlob) {
+        answerText = '[录音已提交 - 请管理员配置语音识别后使用，当前请手动输入文字回答以获得最佳评分反馈]';
+      }
+      if (!answerText || answerText.startsWith('[') && answerText.endsWith(']') && !manualAnswer) {
+        showToast('请录音或手动输入回答内容', 'info');
+        return;
+      }
+      document.getElementById('evalResult').innerHTML = '<div style="padding:14px; background:#f0f9ff; border-radius:8px; text-align:center; color:#1e40af;">🤖 AI 正在评分中，请稍候...</div>';
+      fetch('/api/ai/speaking/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: currentTopic ? currentTopic.topic : '', answer: answerText })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          document.getElementById('evalResult').innerHTML = `
+            <div style="padding:16px; background:#ecfdf5; border-radius:8px; border-left:4px solid #10b981; color:#065f46; font-size:14px; line-height:1.8; white-space:pre-wrap;">
+              <strong>✅ AI 评估结果:</strong>\n\n${escapeHtml(res.data ? res.data.evaluation : '完成')}
+            </div>
+          `;
+          showToast('AI 评分完成！', 'success');
+        } else {
+          document.getElementById('evalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ ${escapeHtml(res.message || '评分失败')}</div>`;
+        }
+      }).catch(err => {
+        document.getElementById('evalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ 请求错误</div>`;
       });
     }
 
-    function markAsPracticed(t) {
-      fetch('/api/speaking/' + t.id + '/practice', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.success) {
-            showToast('已记录练习 ✓', 'success');
-            var log = document.getElementById('practiceLog');
-            log.innerHTML = '<div style="background:#d1fae5;color:#065f46;padding:10px;border-radius:6px;text-align:center;font-size:14px;">✅ 已完成该话题练习 - ' + new Date().toLocaleString('zh-CN') + '</div>';
-          } else {
-            showToast(data.message || '操作失败', 'error');
-          }
-        })
-        .catch(function() {
-          showToast('网络异常', 'error');
+    function markPracticed() {
+      if (!currentTopic) return;
+      fetch('/api/speaking/' + currentTopic.id + '/practice', { method: 'POST' })
+        .then(r => r.json()).then(res => {
+          if (res.success) showToast('已标记为已练习 ✓', 'success');
+          else showToast(res.message || '操作失败', 'error');
         });
     }
 
-    function escapeHtml(s) {
-      if (s == null) return '';
-      return String(s).replace(/[&<>"']/g, function(c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-      });
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
+
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    checkAuth();
   </script>
 </body>
 </html>

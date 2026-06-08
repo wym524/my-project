@@ -9,216 +9,233 @@
 <body>
   <div class="page-container">
     <div class="page-topbar">
-      <div class="brand">📝 写作练习</div>
+      <div class="brand">📚 雅思学习空间</div>
       <div class="right-group">
-        <a href="learning.html" style="color:#fff;font-size:13px;text-decoration:none;">← 返回学习空间</a>
-        <span class="username" id="username">--</span>
-        <button class="logout-btn" id="logoutBtn">退出登录</button>
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
       </div>
     </div>
 
+    <h1 class="page-title">✍️ 写作练习</h1>
+    <p class="page-subtitle">大作文与小作文训练，范文参考与 AI 批改</p>
+
     <div class="filter-bar">
-      <div class="filter-item">
-        <label>类型：</label>
-        <select id="typeSelect">
-          <option value="">全部</option>
-          <option value="大作文">大作文</option>
-          <option value="小作文">小作文</option>
-        </select>
-      </div>
-      <button class="btn-primary btn-sm" id="applyBtn">应用筛选</button>
+      <label><strong>作文类型:</strong></label>
+      <select id="typeFilter" onchange="loadWritings()">
+        <option value="">全部</option>
+        <option value="大作文">大作文 (Task 2)</option>
+        <option value="小作文">小作文 (Task 1)</option>
+      </select>
+      <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
     </div>
 
     <div class="split-layout">
-      <div class="list-panel" id="topicList">
-        <div class="empty-tip">加载中...</div>
+      <div class="list-panel">
+        <div class="section-title" style="margin-bottom:12px; font-size:15px;">题目列表</div>
+        <div id="writingList" style="max-height:65vh; overflow-y:auto;">
+          <div class="loading-text">加载中...</div>
+        </div>
       </div>
-      <div class="detail-panel" id="topicDetail">
-        <div class="empty-tip">请从左侧选择一个写作题目</div>
+
+      <div class="detail-panel">
+        <div id="writingDetail">
+          <div class="empty-state" style="text-align:center; padding:60px 20px;">
+            <div style="font-size:48px; margin-bottom:12px;">👈</div>
+            <p>请从左侧选择一个写作题目开始练习</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
-    var usernameEl = document.getElementById('username');
-    var logoutBtn = document.getElementById('logoutBtn');
-    var typeSelect = document.getElementById('typeSelect');
-    var applyBtn = document.getElementById('applyBtn');
-    var topicList = document.getElementById('topicList');
-    var topicDetail = document.getElementById('topicDetail');
-    var topics = [];
-    var currentTopic = null;
-    var practicedSet = {};
+    let writings = [];
+    let currentWriting = null;
+    let currentUser = null;
 
-    function showToast(msg, type) {
-      var t = document.createElement('div');
-      t.className = 'toast toast-' + (type || 'info');
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(function() { t.remove(); }, 2000);
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        loadWritings();
+      }).catch(() => { window.location.href = 'login.html'; });
     }
 
-    fetch('/api/me')
-      .then(function(r) {
-        if (!r.ok) { window.location.href = '/login.html'; return null; }
-        return r.json();
-      })
-      .then(function(data) {
-        if (!data) return;
-        if (!data.loggedIn) { window.location.href = '/login.html'; return; }
-        usernameEl.textContent = data.username;
-        loadTopics();
-      })
-      .catch(function() { window.location.href = '/login.html'; });
-
-    logoutBtn.addEventListener('click', function() {
-      fetch('/api/logout', { method: 'POST' })
-        .then(function() { window.location.href = '/login.html'; });
-    });
-
-    applyBtn.addEventListener('click', loadTopics);
-
-    function loadTopics() {
-      var tp = typeSelect.value;
-      var url = '/api/writing?limit=100';
-      if (tp) url += '&type=' + encodeURIComponent(tp);
-      fetch(url)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.success || !data.data || data.data.length === 0) {
-            topics = [];
-            topicList.innerHTML = '<div class="empty-tip">暂无题目</div>';
-            topicDetail.innerHTML = '<div class="empty-tip">暂无题目</div>';
-            return;
-          }
-          topics = data.data;
-          renderTopicList();
-          selectTopic(topics[0]);
-        })
-        .catch(function() {
-          topicList.innerHTML = '<div class="empty-tip">加载失败</div>';
-        });
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
     }
 
-    function renderTopicList() {
-      var html = '';
-      topics.forEach(function(t, i) {
-        var active = currentTopic && currentTopic.id === t.id ? 'active' : '';
-        var doneBadge = practicedSet[t.id] ? ' ✓' : '';
-        html += '<div class="list-item ' + active + '" data-idx="' + i + '">' +
-          '<div>' + escapeHtml(t.type) + doneBadge + '</div>' +
-          '<div class="item-sub">' + escapeHtml(String(t.prompt || '').slice(0, 50)) + '...</div>' +
-          '</div>';
-      });
-      topicList.innerHTML = html;
-      var items = topicList.querySelectorAll('.list-item');
-      items.forEach(function(item) {
-        item.addEventListener('click', function() {
-          var idx = Number(item.getAttribute('data-idx'));
-          selectTopic(topics[idx]);
-          renderTopicList();
-        });
+    function loadWritings() {
+      const type = document.getElementById('typeFilter').value;
+      let url = '/api/writing';
+      if (type) url += '?type=' + encodeURIComponent(type);
+      fetch(url).then(r => r.json()).then(res => {
+        if (res.success) {
+          writings = res.data || [];
+          renderList();
+        }
       });
     }
 
-    function selectTopic(t) {
-      currentTopic = t;
-      var html = '';
-      html += '<div class="d-title">' + escapeHtml(t.type) + '</div>';
-      html += '<div class="d-meta">' +
-        '<span class="tag tag-module">' + escapeHtml(t.type) + '</span>' +
-        '</div>';
-
-      html += '<div class="d-section-title">📄 题目内容</div>';
-      html += '<div class="sample-box" style="background:#eef2ff;border-left-color:#4f46e5;">' + escapeHtml(t.prompt) + '</div>';
-
-      if (t.sample_outline) {
-        html += '<div class="collapsible" style="margin-top:18px;">' +
-          '<button class="collapse-toggle" id="outlineToggle">💡 查看参考思路 ▾</button>' +
-          '<div class="collapse-content" id="outlineContent">' +
-          '<div class="sample-box">' + formatOutline(t.sample_outline) + '</div>' +
-          '</div>' +
-          '</div>';
+    function renderList() {
+      const container = document.getElementById('writingList');
+      if (writings.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无题目</div>';
+        return;
       }
-
-      if (t.sample_essay) {
-        html += '<div class="collapsible" style="margin-top:12px;">' +
-          '<button class="collapse-toggle" id="essayToggle">📖 查看参考范文 ▾</button>' +
-          '<div class="collapse-content" id="essayContent">' +
-          '<div class="sample-box">' + escapeHtml(t.sample_essay) + '</div>' +
-          '</div>' +
-          '</div>';
-      }
-
-      html += '<div style="margin-top:24px;text-align:center;">' +
-        '<button class="btn-success" id="practiceBtn">✓ 我已练习</button>' +
-        '</div>';
-
-      html += '<div id="practiceLog" style="margin-top:16px;"></div>';
-
-      topicDetail.innerHTML = html;
-
-      var outlineToggle = document.getElementById('outlineToggle');
-      if (outlineToggle) {
-        outlineToggle.addEventListener('click', function() {
-          var content = document.getElementById('outlineContent');
-          content.classList.toggle('open');
-          outlineToggle.textContent = content.classList.contains('open') ? '💡 收起参考思路 ▴' : '💡 查看参考思路 ▾';
-        });
-      }
-      var essayToggle = document.getElementById('essayToggle');
-      if (essayToggle) {
-        essayToggle.addEventListener('click', function() {
-          var content = document.getElementById('essayContent');
-          content.classList.toggle('open');
-          essayToggle.textContent = content.classList.contains('open') ? '📖 收起参考范文 ▴' : '📖 查看参考范文 ▾';
-        });
-      }
-
-      var practiceBtn = document.getElementById('practiceBtn');
-      practiceBtn.addEventListener('click', function() {
-        practicedSet[t.id] = true;
-        renderTopicList();
-        showToast('已标记为已练习 ✓', 'success');
-        var log = document.getElementById('practiceLog');
-        log.innerHTML = '<div style="background:#d1fae5;color:#065f46;padding:10px;border-radius:6px;text-align:center;font-size:14px;">✅ 已标记练习 - ' + new Date().toLocaleString('zh-CN') + '</div>';
-      });
+      container.innerHTML = writings.map((w, idx) => `
+        <div class="list-item ${currentWriting && currentWriting.id === w.id ? 'active' : ''}" onclick="selectWriting(${idx})" style="cursor:pointer; padding:12px; margin-bottom:6px; border-radius:8px;">
+          <span style="background:${w.type === '大作文' ? '#fee2e2' : '#dbeafe'}; color:${w.type === '大作文' ? '#991b1b' : '#1e40af'}; font-size:11px; padding:2px 8px; border-radius:4px; font-weight:500; display:inline-block; margin-bottom:6px;">${w.type || '写作'}</span>
+          <div style="font-size:14px; color:#1f2937; font-weight:500; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(w.prompt)}</div>
+        </div>
+      `).join('');
     }
 
-    function formatOutline(outline) {
-      if (typeof outline === 'string') {
+    function selectWriting(idx) {
+      currentWriting = writings[idx];
+      renderList();
+      renderWritingDetail();
+    }
+
+    function renderWritingDetail() {
+      const w = currentWriting;
+      const container = document.getElementById('writingDetail');
+
+      let outlineHtml = '';
+      if (w.sample_outline && (typeof w.sample_outline === 'object' || w.sample_outline.startsWith('{'))) {
         try {
-          var obj = JSON.parse(outline);
-          if (obj && typeof obj === 'object') {
-            var html = '';
-            for (var k in obj) {
-              if (obj.hasOwnProperty(k)) {
-                html += '<div style="margin-bottom:8px;"><strong>' + escapeHtml(k) + '：</strong>' + escapeHtml(obj[k]) + '</div>';
-              }
-            }
-            return html;
+          const outline = typeof w.sample_outline === 'object' ? w.sample_outline : JSON.parse(w.sample_outline);
+          const keys = Object.keys(outline);
+          if (keys.length > 0) {
+            outlineHtml = `
+              <div style="margin-top:20px;">
+                <button onclick="toggleOutline()" style="background:#eef2ff; color:#4338ca; border:none; padding:10px 16px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:500;">
+                  📐 参考思路
+                </button>
+                <div id="outlineContent" style="margin-top:10px; padding:16px; background:#f9fafb; border-radius:8px; border-left:3px solid #f59e0b; color:#374151; font-size:14px; line-height:1.8; display:none;">
+                  ${keys.map(k => `<div style="margin-bottom:8px;"><strong style="color:#92400e;">${escapeHtml(k)}:</strong> ${escapeHtml(outline[k])}</div>`).join('')}
+                </div>
+              </div>
+            `;
           }
         } catch (e) {}
-        return escapeHtml(outline);
+      } else if (typeof w.sample_outline === 'string' && w.sample_outline) {
+        outlineHtml = `
+          <div style="margin-top:20px;">
+            <button onclick="toggleOutline()" style="background:#eef2ff; color:#4338ca; border:none; padding:10px 16px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:500;">
+              📐 参考思路
+            </button>
+            <div id="outlineContent" style="margin-top:10px; padding:16px; background:#f9fafb; border-radius:8px; border-left:3px solid #f59e0b; color:#374151; font-size:14px; line-height:1.8; display:none;">${escapeHtml(w.sample_outline)}</div>
+          </div>
+        `;
       }
-      if (outline && typeof outline === 'object') {
-        var html = '';
-        for (var k in outline) {
-          if (outline.hasOwnProperty(k)) {
-            html += '<div style="margin-bottom:8px;"><strong>' + escapeHtml(k) + '：</strong>' + escapeHtml(outline[k]) + '</div>';
-          }
-        }
-        return html;
+
+      let sampleHtml = '';
+      if (w.sample_essay) {
+        sampleHtml = `
+          <div style="margin-top:20px;">
+            <button onclick="toggleSample()" style="background:#eef2ff; color:#4338ca; border:none; padding:10px 16px; border-radius:8px; font-size:14px; cursor:pointer; font-weight:500;">
+              📝 参考范文
+            </button>
+            <div id="sampleContent" style="margin-top:10px; padding:16px; background:#f9fafb; border-radius:8px; border-left:3px solid #10b981; color:#374151; font-size:14px; line-height:1.8; display:none; white-space:pre-wrap;">${escapeHtml(w.sample_essay)}</div>
+          </div>
+        `;
       }
-      return escapeHtml(String(outline || ''));
+
+      container.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <span style="background:${w.type === '大作文' ? '#fee2e2' : '#dbeafe'}; color:${w.type === '大作文' ? '#991b1b' : '#1e40af'}; font-size:12px; padding:4px 12px; border-radius:4px; font-weight:600; display:inline-block;">${w.type || '写作'}</span>
+        </div>
+        <h2 style="font-size:18px; font-weight:600; color:#1e3a8a; line-height:1.6; margin-bottom:16px;">${escapeHtml(w.prompt)}</h2>
+
+        ${outlineHtml}
+        ${sampleHtml}
+
+        <div style="margin-top:24px;">
+          <label style="font-size:14px; font-weight:600; color:#1f2937; display:block; margin-bottom:8px;">✍️ 请在下方输入您的作文:</label>
+          <textarea id="userAnswer" rows="12" placeholder="Write your essay here..." style="width:100%; padding:14px 16px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical; line-height:1.8; transition:border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#d1d5db'"></textarea>
+          <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="submitToAI()">🤖 AI 批改作文</button>
+            <button class="btn-secondary" onclick="clearAnswer()">清空</button>
+            <span id="wordCounter" style="color:#6b7280; font-size:13px; align-self:center; margin-left:auto;">字数: 0</span>
+          </div>
+          <div id="aiEvalResult" style="margin-top:16px;"></div>
+        </div>
+      `;
+
+      const ta = document.getElementById('userAnswer');
+      ta.addEventListener('input', updateWordCount);
     }
 
-    function escapeHtml(s) {
-      if (s == null) return '';
-      return String(s).replace(/[&<>"']/g, function(c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    function updateWordCount() {
+      const ta = document.getElementById('userAnswer');
+      if (ta) {
+        const text = ta.value || '';
+        const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+        const chars = text.length;
+        document.getElementById('wordCounter').textContent = `字数: ${words} 词 / ${chars} 字符`;
+      }
+    }
+
+    function toggleOutline() {
+      const c = document.getElementById('outlineContent');
+      if (c) c.style.display = c.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleSample() {
+      const c = document.getElementById('sampleContent');
+      if (c) c.style.display = c.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function clearAnswer() {
+      const ta = document.getElementById('userAnswer');
+      if (ta) ta.value = '';
+      document.getElementById('wordCounter').textContent = '字数: 0';
+      document.getElementById('aiEvalResult').innerHTML = '';
+    }
+
+    function submitToAI() {
+      const userAnswer = document.getElementById('userAnswer').value.trim();
+      if (!userAnswer) {
+        showToast('请先输入作文内容', 'info');
+        return;
+      }
+      document.getElementById('aiEvalResult').innerHTML = '<div style="padding:14px; background:#f0f9ff; border-radius:8px; text-align:center; color:#1e40af;">🤖 AI 正在批改中，请稍候...</div>';
+      fetch('/api/ai/writing/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: currentWriting ? currentWriting.prompt : '', answer: userAnswer })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          document.getElementById('aiEvalResult').innerHTML = `
+            <div style="padding:18px; background:#ecfdf5; border-radius:10px; border-left:4px solid #10b981; color:#065f46; font-size:14px; line-height:1.8; white-space:pre-wrap;">
+              <strong>✅ AI 批改结果:</strong>\n\n${escapeHtml(res.data ? res.data.evaluation : '完成')}
+            </div>
+          `;
+          showToast('AI 批改完成！', 'success');
+        } else {
+          document.getElementById('aiEvalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ ${escapeHtml(res.message || '批改失败')}</div>`;
+        }
+      }).catch(() => {
+        document.getElementById('aiEvalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ 请求错误</div>`;
       });
     }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    checkAuth();
   </script>
 </body>
 </html>

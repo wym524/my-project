@@ -2,32 +2,39 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>首页</title>
-  <script>
-    window.addEventListener('load', function() {
-      fetch('/api/me')
-        .then(function(r) {
-          if (r.ok) return r.json();
-          window.location.href = '/login.html';
-          return null;
-        })
-        .then(function(data) {
-          if (!data) return;
-          if (data.loggedIn && data.role === 'admin') {
-            window.location.href = '/admin.html';
-          } else if (data.loggedIn) {
-            window.location.href = '/dashboard.html';
-          } else {
-            window.location.href = '/login.html';
-          }
-        })
-        .catch(function() {
-          window.location.href = '/login.html';
-        });
-    });
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雅思学习空间 - 首页</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <p>正在跳转...</p>
+  <div class="container">
+    <div class="card" style="text-align:center;">
+      <h1 class="title">📚 雅思学习空间</h1>
+      <p class="subtitle">正在加载中，请稍候...</p>
+      <div id="statusMsg" class="loading-text" style="margin-top:20px;">检查登录状态...</div>
+    </div>
+  </div>
+
+  <script>
+    fetch('/api/me')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+      if (data && data.username) {
+        document.getElementById('statusMsg').textContent = '欢迎回来，' + data.username + '，正在跳转...';
+        if (data.role === 'admin') {
+          setTimeout(function() { window.location.href = '/admin.html'; }, 300);
+        } else {
+          setTimeout(function() { window.location.href = '/dashboard.html'; }, 300);
+        }
+      } else {
+        document.getElementById('statusMsg').textContent = '未登录，正在跳转登录页...';
+        setTimeout(function() { window.location.href = '/login.html'; }, 500);
+      }
+    })
+    .catch(function() {
+      document.getElementById('statusMsg').textContent = '未登录，正在跳转登录页...';
+      setTimeout(function() { window.location.href = '/login.html'; }, 500);
+    });
+  </script>
 </body>
 </html>
