@@ -142,12 +142,14 @@
     let currentUser = null;
 
     function checkAuth() {
+      const isStudentMode = window.location.search.indexOf('mode=student') >= 0;
       fetch('/api/me').then(r => r.json()).then(data => {
         if (!data.username) {
           window.location.href = 'login.html';
           return;
         }
-        if (data.role === 'admin') {
+        // 管理员在学生视图模式下不自动跳转
+        if (data.role === 'admin' && !isStudentMode) {
           window.location.href = 'admin.html';
           return;
         }
@@ -156,14 +158,25 @@
         document.getElementById('welcomeName').textContent = data.username;
         const bb = document.getElementById('backBtn');
         if (bb) {
+          // 学生视图模式：返回按钮指回 admin.html（返回管理员主页）
           if (data.role === 'admin') {
             bb.href = 'admin.html';
-            bb.textContent = '← 管理员主页';
+            bb.textContent = '← 返回管理员主页';
             bb.style.background = '#7c3aed';
           } else {
             bb.href = 'dashboard.html';
             bb.textContent = '← 返回首页';
             bb.style.background = '#2563eb';
+          }
+        }
+        // 在学生视图模式下，给欢迎横幅加一个提示
+        if (isStudentMode && data.role === 'admin') {
+          const banner = document.querySelector('.welcome-banner');
+          if (banner) {
+            const hint = document.createElement('div');
+            hint.style.cssText = 'margin-top:10px; font-size:12px; color:#7c3aed; font-weight:500;';
+            hint.textContent = '👁 当前为学生视图预览模式';
+            banner.appendChild(hint);
           }
         }
         loadStats();
