@@ -149,6 +149,16 @@
         </div>
       </div>
 
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="scrollToSupervisor()">
+        <div class="mc-icon">📡</div>
+        <div class="mc-title-lg">实时监督</div>
+        <div class="mc-desc-lg">查看开启监督模式学生的摄像头实时画面</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-red">实时</span>
+          <span class="mc-action">查看画面 →</span>
+        </div>
+      </div>
+
       <a href="journal.html" class="module-card module-card-plus" style="text-decoration:none;">
         <div class="mc-icon">💭</div>
         <div class="mc-title-lg">心情日记</div>
@@ -159,6 +169,9 @@
         </div>
       </a>
     </div>
+
+    <!-- 实时监督面板 -->
+    <div id="adminLiveSupervisor" style="margin-top:32px;"></div>
 
     <div style="margin-top:40px;">
       <h2 class="section-title">📋 批量添加内容</h2>
@@ -750,7 +763,13 @@
       });
     }
 
+    function scrollToSupervisor() {
+      const el = document.getElementById('adminLiveSupervisor');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     checkAuth();
   </script>
+  <script src="admin-supervisor.js"></script>
 </body>
 </html>

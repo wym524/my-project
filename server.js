@@ -5,9 +5,29 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const WebSocket = require('ws');
 
 const app = express();
 const PORT = 3000;
+
+// ---------- 实时视频流（纯内存，不保存任何文件）----------
+// { username: { frame: 'data:image/jpeg;base64,...', ts: 毫秒, ws: ws } }
+const liveFrames = new Map();
+const studentConnections = new Map(); // username -> WebSocket
+const adminConnections = new Set();   // 管理员 WebSocket 集合
+
+// 每 500ms 向所有管理员推送一次当前所有学生的最新帧
+setInterval(() => {
+  const snapshot = [];
+  for (const [username, info] of liveFrames.entries()) {
+    snapshot.push({ username, frame: info.frame, ts: info.ts });
+  }
+  if (snapshot.length === 0) return;
+  const payload = JSON.stringify({ type: 'frames', data: snapshot });
+  for (const ws of adminConnections) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(payload);
+  }
+}, 500);
 
 // ---------- 数据库初始化 ----------
 const DATA_DIR = '/data';
@@ -2102,6 +2122,73 @@ app.post('/api/my-notifications/:id/ack', (req, res) => {
 });
 
 // ---------- 启动服务 ----------
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`服务器已启动，监听 http://0.0.0.0:${PORT}`);
 });
+
+// ---------- WebSocket 服务 ----------
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws, req) => {
+  // 通过 URL 参数或 cookie 简单识别身份
+  const url = new URL(req.url, 'http://localhost');
+  const role = url.searchParams.get('role') || '';
+  const username = url.searchParams.get('u') || '';
+  if (!username) { ws.close(); return; }
+
+  if (role === 'admin') {
+    adminConnections.add(ws);
+    // 立刻把当前在线学生列表推一次
+    const snapshot = [];
+    for (const [u, info] of liveFrames.entries()) {
+      snapshot.push({ username: u, frame: info.frame, ts: info.ts });
+    }
+    if (snapshot.length > 0) ws.send(JSON.stringify({ type: 'frames', data: snapshot }));
+  } else {
+    // 学生端：同一个账号只保留一个连接（新顶旧）
+    if (studentConnections.has(username)) {
+      try { studentConnections.get(username).close(); } catch (e) {}
+    }
+    studentConnections.set(username, ws);
+  }
+
+  ws.on('message', (data) => {
+    // 学生端上传帧：{ type: 'frame', frame: 'data:image/jpeg;base64,...' }
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.type === 'frame' && username && role !== 'admin') {
+        liveFrames.set(username, { frame: msg.frame, ts: Date.now() });
+      }
+    } catch (e) {}
+  });
+
+  ws.on('close', () => {
+    if (role === 'admin') {
+      adminConnections.delete(ws);
+    } else {
+      studentConnections.delete(username);
+      liveFrames.delete(username);
+      // 通知管理员该学生下线
+      const payload = JSON.stringify({ type: 'offline', username });
+      for (const a of adminConnections) {
+        if (a.readyState === WebSocket.OPEN) a.send(payload);
+      }
+    }
+  });
+
+  ws.on('error', () => {});
+});
+
+// 每 3 秒清理超过 8 秒没收到新帧的学生（视为离线）
+setInterval(() => {
+  const now = Date.now();
+  for (const [u, info] of liveFrames.entries()) {
+    if (now - info.ts > 8000) {
+      liveFrames.delete(u);
+      const payload = JSON.stringify({ type: 'offline', username: u });
+      for (const a of adminConnections) {
+        if (a.readyState === WebSocket.OPEN) a.send(payload);
+      }
+    }
+  }
+}, 3000);
