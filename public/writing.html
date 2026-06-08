@@ -16,6 +16,7 @@
       </div>
     </div>
 
+    <div style="margin-bottom: 12px;"><a href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
     <h1 class="page-title">✍️ 写作练习</h1>
     <p class="page-subtitle">大作文与小作文训练，范文参考与 AI 批改</p>
 
@@ -27,7 +28,9 @@
         <option value="小作文">小作文 (Task 1)</option>
       </select>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
+      <button class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
     </div>
+    <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
     <div class="split-layout">
       <div class="list-panel">
@@ -233,6 +236,32 @@
       t.textContent = msg;
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 2500);
+    }
+
+    function showGen(msg) {
+      const s = document.getElementById('genStatus');
+      if (msg) { s.style.display = 'block'; s.textContent = msg; }
+      else { s.style.display = 'none'; }
+    }
+
+    async function aiGenerate() {
+      const typeEl = document.getElementById('typeFilter');
+      const type = typeEl ? typeEl.value : '大作文';
+      showGen('🤖 正在调用 AI 生成' + type + '题目，请稍候...');
+      try {
+        const r = await fetch('/api/ai/generate-writing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: type, count: 3 }) });
+        const data = await r.json();
+        if (data.success) {
+          showGen('✅ 成功生成 ' + data.count + ' 道' + type + '题目！正在刷新...');
+          setTimeout(() => { loadWritings(); showGen(''); }, 1500);
+        } else {
+          showGen('❌ ' + data.message);
+          setTimeout(() => showGen(''), 4000);
+        }
+      } catch (e) {
+        showGen('❌ 网络错误: ' + e.message);
+        setTimeout(() => showGen(''), 4000);
+      }
     }
 
     checkAuth();

@@ -1467,6 +1467,103 @@ app.get('/api/stats/chart', (req, res) => {
   return res.status(400).json({ success: false, message: '未知图表类型' });
 });
 
+// ---------- AI 自动生成内容 API ----------
+app.post('/api/ai/generate-words', async (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
+  const { category = '高频', count = 10 } = req.body || {};
+  const prompt = `请生成${count}个雅思${category}类单词，严格返回 JSON 数组，不要任何解释文字。格式：[{"word":"...","meaning":"中文释义","example":"英文例句"}]`;
+  const result = await callAI(cfg, prompt);
+  if (!result.success) return res.status(500).json({ success: false, message: result.content });
+  try {
+    let arr = JSON.parse(result.content.replace(/```json|```/g, '').trim());
+    if (!Array.isArray(arr)) {
+      const m = result.content.match(/\[[\s\S]*\]/);
+      if (m) arr = JSON.parse(m[0]);
+    }
+    const stmt = db.prepare('INSERT INTO words (word, meaning, example, category) VALUES (?, ?, ?, ?)');
+    const tx = db.transaction((items) => { for (const w of items) if (w.word && w.meaning) stmt.run(w.word, w.meaning, w.example || '', category); });
+    tx(arr);
+    return res.json({ success: true, count: arr.length, items: arr.slice(0, 5) });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: '解析失败: ' + e.message + ' | 原始: ' + result.content.slice(0, 200) });
+  }
+});
+
+app.post('/api/ai/generate-speaking', async (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
+  const { part = 'Part 2', count = 3 } = req.body || {};
+  const prompt = `请生成${count}个雅思口语${part}话题卡，严格返回 JSON 数组，不要任何解释。格式：[{"topic":"话题标题","question":"问题描述","hints":"提示要点用换行分隔","reference_answer":"参考答案"}]`;
+  const result = await callAI(cfg, prompt);
+  if (!result.success) return res.status(500).json({ success: false, message: result.content });
+  try {
+    let arr = JSON.parse(result.content.replace(/```json|```/g, '').trim());
+    if (!Array.isArray(arr)) {
+      const m = result.content.match(/\[[\s\S]*\]/);
+      if (m) arr = JSON.parse(m[0]);
+    }
+    const stmt = db.prepare('INSERT INTO speaking_topics (part, topic, question, hints, reference_answer) VALUES (?, ?, ?, ?, ?)');
+    const tx = db.transaction((items) => { for (const t of items) if (t.topic) stmt.run(part, t.topic, t.question || '', t.hints || '', t.reference_answer || ''); });
+    tx(arr);
+    return res.json({ success: true, count: arr.length, items: arr.slice(0, 3) });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: '解析失败: ' + e.message });
+  }
+});
+
+app.post('/api/ai/generate-writing', async (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
+  const { type = '大作文', count = 3 } = req.body || {};
+  const prompt = `请生成${count}道雅思${type}题目，严格返回 JSON 数组，不要任何解释。大作文格式：[{"title":"题目","question":"完整题目描述","hints":"写作思路用换行分隔"}]`;
+  const result = await callAI(cfg, prompt);
+  if (!result.success) return res.status(500).json({ success: false, message: result.content });
+  try {
+    let arr = JSON.parse(result.content.replace(/```json|```/g, '').trim());
+    if (!Array.isArray(arr)) {
+      const m = result.content.match(/\[[\s\S]*\]/);
+      if (m) arr = JSON.parse(m[0]);
+    }
+    const stmt = db.prepare('INSERT INTO writing_questions (type, title, question, hints) VALUES (?, ?, ?, ?)');
+    const tx = db.transaction((items) => { for (const w of items) if (w.question) stmt.run(type, w.title || type + '题目', w.question, w.hints || ''); });
+    tx(arr);
+    return res.json({ success: true, count: arr.length, items: arr.slice(0, 3) });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: '解析失败: ' + e.message });
+  }
+});
+
+app.post('/api/ai/generate-questions', async (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
+  const { subject = '阅读', count = 5 } = req.body || {};
+  const prompt = `请生成${count}道雅思${subject}选择题，严格返回 JSON 数组，不要任何解释。格式：[{"type":"${subject}","question":"题目","options":["A选项","B选项","C选项","D选项"],"answer":"正确答案字母如A","explanation":"解析"}]`;
+  const result = await callAI(cfg, prompt);
+  if (!result.success) return res.status(500).json({ success: false, message: result.content });
+  try {
+    let arr = JSON.parse(result.content.replace(/```json|```/g, '').trim());
+    if (!Array.isArray(arr)) {
+      const m = result.content.match(/\[[\s\S]*\]/);
+      if (m) arr = JSON.parse(m[0]);
+    }
+    const stmt = db.prepare('INSERT INTO questions (type, question, options, answer, explanation) VALUES (?, ?, ?, ?, ?)');
+    const tx = db.transaction((items) => { for (const q of items) if (q.question && q.answer) stmt.run(subject, q.question, JSON.stringify(q.options || []), q.answer, q.explanation || ''); });
+    tx(arr);
+    return res.json({ success: true, count: arr.length, items: arr.slice(0, 3) });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: '解析失败: ' + e.message });
+  }
+});
+
 // ---------- 启动服务 ----------
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`服务器已启动，监听 http://0.0.0.0:${PORT}`);
