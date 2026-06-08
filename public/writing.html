@@ -16,7 +16,7 @@
       </div>
     </div>
 
-    <div style="margin-bottom: 12px;"><a href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
+    <div style="margin-bottom: 12px;"><a id="backBtn" href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
     <h1 class="page-title">✍️ 写作练习</h1>
     <p class="page-subtitle">大作文与小作文训练，范文参考与 AI 批改</p>
 
@@ -61,6 +61,18 @@
         if (!data.username) { window.location.href = 'login.html'; return; }
         currentUser = data;
         document.getElementById('username').textContent = '👋 ' + data.username;
+        const bb = document.getElementById('backBtn');
+        if (bb) {
+          if (data.role === 'admin') {
+            bb.href = 'admin.html';
+            bb.textContent = '← 管理员主页';
+            bb.style.background = '#7c3aed';
+          } else {
+            bb.href = 'dashboard.html';
+            bb.textContent = '← 返回首页';
+            bb.style.background = '#2563eb';
+          }
+        }
         loadWritings();
       }).catch(() => { window.location.href = 'login.html'; });
     }

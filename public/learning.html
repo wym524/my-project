@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <div style="margin-bottom: 12px;"><a href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
+    <div style="margin-bottom: 12px;"><a id="backBtn" href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
     <h1 class="page-title">📊 学习中心</h1>
     <p class="page-subtitle">学习统计、打卡日历、AI 学习助手一站式管理</p>
 
@@ -112,6 +112,18 @@
         if (!data.username) { window.location.href = 'login.html'; return; }
         currentUser = data;
         document.getElementById('username').textContent = '👋 ' + data.username;
+        const bb = document.getElementById('backBtn');
+        if (bb) {
+          if (data.role === 'admin') {
+            bb.href = 'admin.html';
+            bb.textContent = '← 管理员主页';
+            bb.style.background = '#7c3aed';
+          } else {
+            bb.href = 'dashboard.html';
+            bb.textContent = '← 返回首页';
+            bb.style.background = '#2563eb';
+          }
+        }
         initAll();
       }).catch(() => { window.location.href = 'login.html'; });
     }
