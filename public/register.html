@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户注册</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1 class="title">用户注册</h1>
+      <p class="subtitle">创建新账号，开启您的旅程</p>
+
+      <form id="registerForm" class="form">
+        <div class="form-item">
+          <label for="username">用户名</label>
+          <input type="text" id="username" name="username" placeholder="请输入用户名" required>
+        </div>
+        <div class="form-item">
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" placeholder="请输入密码（至少3位）" required>
+        </div>
+        <div class="form-item">
+          <label for="confirmPassword">确认密码</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" placeholder="请再次输入密码" required>
+        </div>
+
+        <div id="errorMsg" class="error-msg"></div>
+        <div id="successMsg" class="success-msg"></div>
+
+        <button type="submit" class="btn-primary">注 册</button>
+      </form>
+
+      <p class="footer-link">已有账号？<a href="login.html">立即登录</a></p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('registerForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const successMsg = document.getElementById('successMsg');
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      errorMsg.textContent = '';
+      errorMsg.style.display = 'none';
+      successMsg.textContent = '';
+      successMsg.style.display = 'none';
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+
+      if (password !== confirmPassword) {
+        errorMsg.textContent = '两次输入的密码不一致';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      })
+      .then(function(r) {
+        return r.json().then(function(data) {
+          return { ok: r.ok, data: data };
+        });
+      })
+      .then(function(result) {
+        if (result.ok && result.data.success) {
+          successMsg.textContent = result.data.message + '，即将跳转到登录页...';
+          successMsg.style.display = 'block';
+          setTimeout(function() {
+            window.location.href = '/login.html';
+          }, 1200);
+        } else {
+          errorMsg.textContent = result.data.message || '注册失败';
+          errorMsg.style.display = 'block';
+        }
+      })
+      .catch(function() {
+        errorMsg.textContent = '网络异常，请稍后再试';
+        errorMsg.style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>

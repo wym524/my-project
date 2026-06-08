@@ -1,0 +1,17 @@
+- [ ] Checkpoint 1: 后端 API 可启动且无错误
+- [ ] Checkpoint 2: POST /api/register 可注册新用户
+- [ ] Checkpoint 3: 重复用户名注册返回明确错误
+- [ ] Checkpoint 4: POST /api/login 普通用户可登录并获得 Cookie
+- [ ] Checkpoint 5: POST /api/login 管理员 001/141242 可登录
+- [ ] Checkpoint 6: 密码错误返回 401，不泄露敏感信息
+- [ ] Checkpoint 7: 数据库中密码为 bcrypt 哈希，非明文
+- [ ] Checkpoint 8: GET /api/me 未携带 Cookie 时拦截
+- [ ] Checkpoint 9: 未登录访问主页自动跳转登录页
+- [ ] Checkpoint 10: 登录页面中文文案整洁、按钮可点击
+- [ ] Checkpoint 11: 注册页面可使用
+- [ ] Checkpoint 12: 管理员登录后页面显示"管理员"标识
+- [ ] Checkpoint 13: 退出登录可清除 Cookie 并跳回登录页
+- [ ] Checkpoint 14: Docker Compose 可成功启动容器
+- [ ] Checkpoint 15: 容器重启后用户数据仍在（持久化）
+- [ ] Checkpoint 16: http://124.223.86.48:3000 公网可访问
+- [ ] Checkpoint 17: 管理员和普通用户登录后看到不同的页面

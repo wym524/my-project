@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="user-info">
+        <span class="admin-badge">管理员</span>
+        <span>当前用户：<strong id="username">--</strong></span>
+      </div>
+      <button id="logoutBtn" class="btn-secondary">退出登录</button>
+    </div>
+
+    <div class="card">
+      <h1 class="title"><span class="admin-badge-lg">管理员</span> 管理后台</h1>
+      <p class="subtitle">这里是管理员专属页面</p>
+
+      <div class="admin-card">
+        <h3>🔐 管理员专属区域</h3>
+        <p>欢迎进入管理后台，您可以在这里管理系统的核心配置。</p>
+      </div>
+
+      <div class="placeholder">
+        <h3>管理功能</h3>
+        <ul>
+          <li>用户管理（开发中）</li>
+          <li>系统配置（开发中）</li>
+          <li>权限分配（开发中）</li>
+          <li>日志审计（开发中）</li>
+        </ul>
+        <p class="muted">管理员功能将按优先级陆续上线。</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const usernameEl = document.getElementById('username');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    fetch('/api/me')
+      .then(function(r) {
+        if (!r.ok) {
+          window.location.href = '/login.html';
+          return null;
+        }
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data) return;
+        if (!data.loggedIn || data.role !== 'admin') {
+          window.location.href = '/login.html';
+          return;
+        }
+        usernameEl.textContent = data.username;
+      })
+      .catch(function() {
+        window.location.href = '/login.html';
+      });
+
+    logoutBtn.addEventListener('click', function() {
+      fetch('/api/logout', { method: 'POST' })
+        .then(function() {
+          window.location.href = '/login.html';
+        });
+    });
+  </script>
+</body>
+</html>

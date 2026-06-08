@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>首页</title>
+  <script>
+    window.addEventListener('load', function() {
+      fetch('/api/me')
+        .then(function(r) {
+          if (r.ok) return r.json();
+          window.location.href = '/login.html';
+          return null;
+        })
+        .then(function(data) {
+          if (!data) return;
+          if (data.loggedIn && data.role === 'admin') {
+            window.location.href = '/admin.html';
+          } else if (data.loggedIn) {
+            window.location.href = '/dashboard.html';
+          } else {
+            window.location.href = '/login.html';
+          }
+        })
+        .catch(function() {
+          window.location.href = '/login.html';
+        });
+    });
+  </script>
+</head>
+<body>
+  <p>正在跳转...</p>
+</body>
+</html>

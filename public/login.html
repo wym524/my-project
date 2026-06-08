@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户登录</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1 class="title">用户登录</h1>
+      <p class="subtitle">欢迎回来，请登录您的账号</p>
+
+      <form id="loginForm" class="form">
+        <div class="form-item">
+          <label for="username">用户名</label>
+          <input type="text" id="username" name="username" placeholder="请输入用户名" required>
+        </div>
+        <div class="form-item">
+          <label for="password">密码</label>
+          <input type="password" id="password" name="password" placeholder="请输入密码" required>
+        </div>
+
+        <div id="errorMsg" class="error-msg"></div>
+
+        <button type="submit" class="btn-primary">登 录</button>
+      </form>
+
+      <p class="footer-link">没有账号？<a href="register.html">立即注册</a></p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('errorMsg');
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      errorMsg.textContent = '';
+      errorMsg.style.display = 'none';
+
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      })
+      .then(function(r) {
+        return r.json().then(function(data) {
+          return { ok: r.ok, data: data };
+        });
+      })
+      .then(function(result) {
+        if (result.ok && result.data.success) {
+          if (result.data.role === 'admin') {
+            window.location.href = '/admin.html';
+          } else {
+            window.location.href = '/dashboard.html';
+          }
+        } else {
+          errorMsg.textContent = result.data.message || '登录失败';
+          errorMsg.style.display = 'block';
+        }
+      })
+      .catch(function() {
+        errorMsg.textContent = '网络异常，请稍后再试';
+        errorMsg.style.display = 'block';
+      });
+    });
+  </script>
+</body>
+</html>

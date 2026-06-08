@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>欢迎使用</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="user-info">
+        <span>当前用户：<strong id="username">--</strong></span>
+      </div>
+      <button id="logoutBtn" class="btn-secondary">退出登录</button>
+    </div>
+
+    <div class="card">
+      <h1 class="title">欢迎使用</h1>
+      <p class="subtitle">您已成功登录，欢迎使用！</p>
+
+      <div class="welcome-card">
+        <h3>🎉 登录成功</h3>
+        <p>您已成功登录系统，感谢您的使用。</p>
+      </div>
+
+      <div class="placeholder">
+        <h3>功能预告</h3>
+        <ul>
+          <li>个人信息管理功能（开发中）</li>
+          <li>数据统计与分析功能（开发中）</li>
+          <li>消息通知中心（开发中）</li>
+          <li>更多功能将逐步添加...</li>
+        </ul>
+        <p class="muted">我们会持续为您带来更好的体验。</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const usernameEl = document.getElementById('username');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    fetch('/api/me')
+      .then(function(r) {
+        if (!r.ok) {
+          window.location.href = '/login.html';
+          return null;
+        }
+        return r.json();
+      })
+      .then(function(data) {
+        if (!data) return;
+        if (!data.loggedIn) {
+          window.location.href = '/login.html';
+          return;
+        }
+        usernameEl.textContent = data.username;
+      })
+      .catch(function() {
+        window.location.href = '/login.html';
+      });
+
+    logoutBtn.addEventListener('click', function() {
+      fetch('/api/logout', { method: 'POST' })
+        .then(function() {
+          window.location.href = '/login.html';
+        });
+    });
+  </script>
+</body>
+</html>
