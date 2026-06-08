@@ -29,7 +29,7 @@
         <option value="part3">Part 3</option>
       </select>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
-      <button class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
+      <button id="aiBtnSpeaking" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
     </div>
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
@@ -73,7 +73,7 @@
       </div>
       <div style="display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;">
         <button class="btn-secondary" onclick="closeModal()">取消</button>
-        <button class="btn-primary" onclick="submitAIEvaluate()">🤖 AI 评分</button>
+        <button id="aiBtnSpeakingEval" class="btn-primary" onclick="submitAIEvaluate()">🤖 AI 评分</button>
       </div>
       <div id="evalResult" style="margin-top:16px;"></div>
     </div>
@@ -254,7 +254,11 @@
       }
     }
 
-    function submitAIEvaluate() {
+    async function submitAIEvaluate() {
+      const btn = document.getElementById('aiBtnSpeakingEval') || document.querySelector('button[onclick="submitAIEvaluate()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 评分中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const manualAnswer = document.getElementById('manualAnswer').value.trim();
       let answerText = manualAnswer;
       if (!answerText && audioBlob) {
@@ -262,14 +266,17 @@
       }
       if (!answerText || answerText.startsWith('[') && answerText.endsWith(']') && !manualAnswer) {
         showToast('请录音或手动输入回答内容', 'info');
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
         return;
       }
       document.getElementById('evalResult').innerHTML = '<div style="padding:14px; background:#f0f9ff; border-radius:8px; text-align:center; color:#1e40af;">🤖 AI 正在评分中，请稍候...</div>';
-      fetch('/api/ai/speaking/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: currentTopic ? currentTopic.topic : '', answer: answerText })
-      }).then(r => r.json()).then(res => {
+      try {
+        const r = await fetch('/api/ai/speaking/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: currentTopic ? currentTopic.topic : '', answer: answerText })
+        });
+        const res = await r.json();
         if (res.success) {
           document.getElementById('evalResult').innerHTML = `
             <div style="padding:16px; background:#ecfdf5; border-radius:8px; border-left:4px solid #10b981; color:#065f46; font-size:14px; line-height:1.8; white-space:pre-wrap;">
@@ -280,9 +287,11 @@
         } else {
           document.getElementById('evalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ ${escapeHtml(res.message || '评分失败')}</div>`;
         }
-      }).catch(err => {
+      } catch (err) {
         document.getElementById('evalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ 请求错误</div>`;
-      });
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
+      }
     }
 
     function markPracticed() {
@@ -314,6 +323,10 @@
     }
 
     async function aiGenerate() {
+      const btn = document.getElementById('aiBtnSpeaking') || document.querySelector('button[onclick="aiGenerate()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 处理中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const partEl = document.getElementById('partFilter');
       const part = partEl ? partEl.value : 'Part 2';
       showGen('🤖 正在调用 AI 生成' + part + '话题，请稍候...');
@@ -330,6 +343,8 @@
       } catch (e) {
         showGen('❌ 网络错误: ' + e.message);
         setTimeout(() => showGen(''), 4000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
       }
     }
 

@@ -20,6 +20,34 @@
     <h1 class="page-title">📝 真题练习</h1>
     <p class="page-subtitle">雅思阅读、听力真题训练，选择题与填空题结合</p>
 
+    <div style="background:#fff; border-radius:12px; padding:18px 20px; margin-bottom:16px; box-shadow:0 2px 12px rgba(0,0,0,0.05);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div style="font-size:14px; font-weight:600; color:#1f2937;">📊 答题进度</div>
+        <div style="font-size:13px; color:#374151;">
+          已答 <span id="progAnswered" style="color:#2563eb; font-weight:700;">0</span>
+          / <span id="progTotal" style="font-weight:600;">0</span>
+          &nbsp;|&nbsp;
+          ✅ <span id="progCorrect" style="color:#065f46; font-weight:700;">0</span>
+          &nbsp;|&nbsp;
+          ❌ <span id="progWrong" style="color:#991b1b; font-weight:700;">0</span>
+          &nbsp;|&nbsp;
+          正确率 <span id="progRate" style="color:#2563eb; font-weight:700;">0%</span>
+        </div>
+      </div>
+      <div style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden;">
+        <div id="progBar" style="background:linear-gradient(90deg, #2563eb, #7c3aed); height:100%; width:0%; transition:width 0.3s;"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:center; margin-bottom:12px; gap:16px; flex-wrap:wrap;">
+      <label style="font-size:13px; color:#374151; cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:#fff; border-radius:8px; border:1px solid #e5e7eb;">
+        <input type="checkbox" id="showWrongOnly" onchange="renderQuestions()">
+        <span>📖 仅显示错题</span>
+      </label>
+      <button onclick="resetAnswers()" style="padding:6px 14px; background:#f3f4f6; color:#374151; border:none; border-radius:8px; font-size:13px; cursor:pointer;">🔄 重置答题记录</button>
+      <span id="wrongCountHint" style="font-size:12px; color:#6b7280;"></span>
+    </div>
+
     <div class="filter-bar">
       <label><strong>模块:</strong></label>
       <select id="moduleFilter" onchange="loadQuestions()">
@@ -34,7 +62,7 @@
         <option value="blank">填空题</option>
       </select>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
-      <button class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
+      <button id="aiBtnQuestions" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
     </div>
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
@@ -89,19 +117,56 @@
       });
     }
 
+    function updateProgress() {
+      const total = questions.length;
+      const answered = Object.keys(answeredIds).length;
+      let correct = 0, wrong = 0;
+      for (const qid in answeredIds) {
+        if (answeredIds[qid].correct) correct++;
+        else wrong++;
+      }
+      const rate = answered > 0 ? Math.round(correct * 100 / answered) : 0;
+      const pa = document.getElementById('progAnswered');
+      if (pa) pa.textContent = answered;
+      const pt = document.getElementById('progTotal');
+      if (pt) pt.textContent = total;
+      const pc = document.getElementById('progCorrect');
+      if (pc) pc.textContent = correct;
+      const pw = document.getElementById('progWrong');
+      if (pw) pw.textContent = wrong;
+      const pr = document.getElementById('progRate');
+      if (pr) pr.textContent = rate + '%';
+      const pbar = document.getElementById('progBar');
+      if (pbar) pbar.style.width = (total > 0 ? answered * 100 / total : 0) + '%';
+    }
+
     function renderQuestions() {
       const container = document.getElementById('questionsContainer');
-      if (questions.length === 0) {
-        container.innerHTML = '<div class="empty-state">暂无题目，请调整筛选条件</div>';
+      const onlyWrong = document.getElementById('showWrongOnly') && document.getElementById('showWrongOnly').checked;
+      let list = questions;
+      if (onlyWrong) {
+        list = questions.filter(q => answeredIds[q.id] && !answeredIds[q.id].correct);
+        const hint = document.getElementById('wrongCountHint');
+        if (hint) hint.textContent = onlyWrong ? '（共 ' + list.length + ' 道错题）' : '';
+      } else {
+        const hint = document.getElementById('wrongCountHint');
+        if (hint) hint.textContent = '';
+      }
+      if (list.length === 0) {
+        container.innerHTML = '<div class="empty-state">' + (onlyWrong ? '🎉 太棒了！没有错题' : '暂无题目，请调整筛选条件') + '</div>';
+        updateProgress();
         return;
       }
-      container.innerHTML = questions.map((q, idx) => renderQuestion(q, idx)).join('');
+      container.innerHTML = list.map((q, idx) => renderQuestion(q, idx)).join('');
+      updateProgress();
     }
 
     function renderQuestion(q, idx) {
       const typeLabel = q.type === 'choice' ? '选择题' : (q.type === 'blank' ? '填空题' : '题目');
       const moduleLabel = q.module === 'reading' ? '阅读' : (q.module === 'listening' ? '听力' : q.module);
       const answered = answeredIds[q.id];
+      const realIdx = questions.findIndex(q2 => q2.id === q.id);
+      const displayIdx = realIdx >= 0 ? realIdx + 1 : idx + 1;
 
       let optionsHtml = '';
       if (q.type === 'choice' && q.options && q.options.length > 0) {
@@ -149,7 +214,7 @@
           <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
             <span style="background:#e0e7ff; color:#3730a3; font-size:12px; padding:3px 10px; border-radius:4px; font-weight:500;">${moduleLabel}</span>
             <span style="background:#fef3c7; color:#92400e; font-size:12px; padding:3px 10px; border-radius:4px; font-weight:500;">${typeLabel}</span>
-            <span style="color:#6b7280; font-size:12px;">第 ${idx + 1} 题</span>
+            <span style="color:#6b7280; font-size:12px;">第 ${displayIdx} 题</span><span style="margin-left:6px;">${answered ? (answered.correct ? '✅' : '❌') : ''}</span>
           </div>
           <div style="font-size:17px; line-height:1.8; color:#1f2937; font-weight:500;">${escapeHtml(q.prompt)}</div>
           ${optionsHtml}
@@ -208,6 +273,10 @@
     }
 
     async function aiGenerate() {
+      const btn = document.getElementById('aiBtnQuestions') || document.querySelector('button[onclick="aiGenerate()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 处理中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const subjectEl = document.getElementById('moduleFilter');
       const subjectValue = subjectEl ? subjectEl.value : 'reading';
       const subjectLabel = subjectValue === 'listening' ? '听力' : '阅读';
@@ -225,7 +294,20 @@
       } catch (e) {
         showGen('❌ 网络错误: ' + e.message);
         setTimeout(() => showGen(''), 4000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
       }
+    }
+
+    function resetAnswers() {
+      if (Object.keys(answeredIds).length === 0) {
+        showToast('暂无答题记录可重置', 'info');
+        return;
+      }
+      if (!confirm('确定要重置所有答题记录吗？')) return;
+      answeredIds = {};
+      renderQuestions();
+      showToast('答题记录已重置', 'success');
     }
 
     checkAuth();

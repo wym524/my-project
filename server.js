@@ -1318,13 +1318,41 @@ app.get('/api/checkin', (req, res) => {
   if (!session) return;
   const today = new Date().toISOString().slice(0, 10);
   const existing = db.prepare('SELECT * FROM daily_checkins WHERE username = ? AND date = ?').get(session.username, today);
+  const allRecords = db.prepare('SELECT date FROM daily_checkins WHERE username = ? ORDER BY date DESC').all(session.username);
+  const streak = computeStreak(allRecords.map(r => r.date));
   if (existing) {
-    return res.json({ success: true, message: '今日已打卡', alreadyChecked: true });
+    return res.json({ success: true, message: '今日已打卡', alreadyChecked: true, streak, totalCheckins: allRecords.length });
   }
   db.prepare('INSERT INTO daily_checkins (username, date) VALUES (?, ?)').run(session.username, today);
-  const total = db.prepare('SELECT COUNT(*) AS c FROM daily_checkins WHERE username = ?').get(session.username).c;
-  return res.json({ success: true, message: '打卡成功', date: today, totalCheckins: total });
+  const newStreak = computeStreak([today, ...allRecords.map(r => r.date)]);
+  return res.json({ success: true, message: '打卡成功', date: today, totalCheckins: allRecords.length + 1, streak: newStreak });
 });
+
+function computeStreak(dates) {
+  if (!dates || dates.length === 0) return 0;
+  const unique = [...new Set(dates)].sort((a, b) => b.localeCompare(a));
+  if (unique.length === 0) return 0;
+  let streak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let cursor = new Date(today);
+  const todayStr = cursor.toISOString().slice(0, 10);
+  const latestStr = unique[0];
+  if (latestStr !== todayStr) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (unique[0] !== cursor.toISOString().slice(0, 10)) return 0;
+  }
+  for (let i = 0; i < unique.length; i++) {
+    const expected = cursor.toISOString().slice(0, 10);
+    if (unique[i] === expected) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
 
 app.get('/api/checkins', (req, res) => {
   const session = requireLogin(req, res);
@@ -1425,6 +1453,10 @@ app.get('/api/stats/overview', (req, res) => {
   const totalTasks = db.prepare('SELECT COUNT(*) AS c FROM task_assignments WHERE username = ?').get(session.username).c;
   const completedTasks = db.prepare('SELECT COUNT(*) AS c FROM task_assignments WHERE username = ? AND status = \'completed\'').get(session.username).c;
   const totalCheckins = db.prepare('SELECT COUNT(*) AS c FROM daily_checkins WHERE username = ?').get(session.username).c;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const checkedToday = !!db.prepare('SELECT id FROM daily_checkins WHERE username = ? AND date = ?').get(session.username, todayStr);
+  const allDates = db.prepare('SELECT date FROM daily_checkins WHERE username = ?').all(session.username).map(r => r.date);
+  const streak = computeStreak(allDates);
   const totalSessions = db.prepare('SELECT COUNT(*) AS c FROM study_sessions WHERE username = ?').get(session.username).c;
   const totalDuration = db.prepare('SELECT COALESCE(SUM(duration_seconds), 0) AS d FROM study_sessions WHERE username = ?').get(session.username).d;
   const totalScore = db.prepare('SELECT COALESCE(SUM(score), 0) AS s FROM study_sessions WHERE username = ?').get(session.username).s;
@@ -1436,7 +1468,7 @@ app.get('/api/stats/overview', (req, res) => {
       words: { total: totalWords, known: knownWords, progress: wordProgress },
       questions: { total: totalQuestions, answered, correct, accuracy },
       tasks: { total: totalTasks, completed: completedTasks },
-      checkins: { total: totalCheckins },
+      checkins: { total: totalCheckins, checkedToday, streak },
       sessions: { total: totalSessions, totalSeconds: totalDuration, totalScore },
       ai_configured: !!db.prepare('SELECT COUNT(*) AS c FROM ai_configs').get().c
     }

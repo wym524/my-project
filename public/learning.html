@@ -97,7 +97,7 @@
 
         <div style="display:flex; gap:10px; flex-shrink:0;">
           <input type="text" id="chatInput" placeholder="输入您的问题..." style="flex:1; padding:12px 14px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px; outline:none;" onkeypress="if(event.key==='Enter') sendChat()">
-          <button class="btn-primary" onclick="sendChat()">发送</button>
+          <button id="aiBtnChatSend" class="btn-primary" onclick="sendChat()">发送</button>
         </div>
       </div>
     </div>
@@ -310,10 +310,17 @@
       });
     }
 
-    function sendChat() {
+    async function sendChat() {
+      const btn = document.getElementById('aiBtnChatSend') || document.querySelector('button[onclick="sendChat()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 发送中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const input = document.getElementById('chatInput');
       const text = input.value.trim();
-      if (!text) return;
+      if (!text) {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
+        return;
+      }
       const messages = document.getElementById('chatMessages');
       messages.innerHTML += `
         <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
@@ -333,11 +340,13 @@
         </div>
       `;
       messages.scrollTop = messages.scrollHeight;
-      fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text })
-      }).then(r => r.json()).then(res => {
+      try {
+        const r = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: text })
+        });
+        const res = await r.json();
         const loading = document.getElementById(loadingId);
         if (loading) loading.remove();
         if (res.success && res.data) {
@@ -360,11 +369,13 @@
           `;
         }
         messages.scrollTop = messages.scrollHeight;
-      }).catch(() => {
+      } catch (err) {
         const loading = document.getElementById(loadingId);
         if (loading) loading.remove();
         messages.innerHTML += `<div style="color:#ef4444; font-size:13px; text-align:center; margin-bottom:12px;">请求错误</div>`;
-      });
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
+      }
     }
 
     function escapeHtml(str) {

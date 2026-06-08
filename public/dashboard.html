@@ -20,28 +20,71 @@
     <h1 class="page-title">学习空间</h1>
     <p class="page-subtitle">欢迎来到雅思学习空间，开始您的高效备考之旅！</p>
 
+    <!-- 欢迎横幅 -->
+    <div class="welcome-banner" id="welcomeBanner">
+      <div class="welcome-info">
+        <div class="welcome-greeting">
+          <span class="welcome-hi">Hi，</span>
+          <span class="welcome-name" id="welcomeName">同学</span>
+          <span class="welcome-wave">👋</span>
+        </div>
+        <div class="welcome-meta">
+          <span class="welcome-badge" id="checkinBadge">⏳ 正在加载...</span>
+          <span class="welcome-streak" id="streakBadge">🔥 连续学习 0 天</span>
+        </div>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn-primary btn-checkin" id="checkinBtn" onclick="doCheckin()">✅ 今日打卡</button>
+      </div>
+    </div>
+
     <!-- 模块卡片 -->
     <h2 class="section-title">🎯 学习模块</h2>
-    <div class="module-grid">
-      <a href="words.html" class="module-card">
-        <div class="icon">📖</div>
-        <div class="mc-title">背单词</div>
-        <div class="mc-desc">高效记忆雅思高频词汇，分组学习与复习</div>
+    <div class="module-grid module-grid-enhanced">
+      <a href="words.html" class="module-card module-card-plus">
+        <div class="mc-icon">📖</div>
+        <div class="mc-title-lg">单词学习</div>
+        <div class="mc-desc-lg">分模块学习雅思高频词汇，支持 AI 生成新词</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-blue">词汇积累</span>
+          <span class="mc-action">开始学习 →</span>
+        </div>
       </a>
-      <a href="questions.html" class="module-card">
-        <div class="icon">📝</div>
-        <div class="mc-title">真题练习</div>
-        <div class="mc-desc">雅思阅读、听力真题训练，即时反馈解析</div>
+      <a href="speaking.html" class="module-card module-card-plus">
+        <div class="mc-icon">🎤</div>
+        <div class="mc-title-lg">口语练习</div>
+        <div class="mc-desc-lg">话题卡练习，录音回放，AI 自动评分</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-purple">口语输出</span>
+          <span class="mc-action">开始练习 →</span>
+        </div>
       </a>
-      <a href="speaking.html" class="module-card">
-        <div class="icon">🎤</div>
-        <div class="mc-title">口语练习</div>
-        <div class="mc-desc">Part 1/2/3 话题训练，录音回放与AI评分</div>
+      <a href="writing.html" class="module-card module-card-plus">
+        <div class="mc-icon">✍️</div>
+        <div class="mc-title-lg">写作训练</div>
+        <div class="mc-desc-lg">大作文/小作文练习，AI 智能批改</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-green">写作输出</span>
+          <span class="mc-action">开始写作 →</span>
+        </div>
       </a>
-      <a href="writing.html" class="module-card">
-        <div class="icon">✍️</div>
-        <div class="mc-title">写作练习</div>
-        <div class="mc-desc">大作文小作文训练，范文参考与AI批改</div>
+      <a href="questions.html" class="module-card module-card-plus">
+        <div class="mc-icon">📝</div>
+        <div class="mc-title-lg">真题练习</div>
+        <div class="mc-desc-lg">阅读/听力选择题，即时反馈 + 解析</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-yellow">真题训练</span>
+          <span class="mc-action">开始做题 →</span>
+        </div>
+      </a>
+      <a href="learning.html" class="module-card module-card-plus">
+        <div class="mc-icon">📊</div>
+        <div class="mc-title-lg">学习中心</div>
+        <div class="mc-desc-lg">学习数据统计、打卡日历、AI 学习助手</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-pink">学习全景</span>
+          <span class="mc-action">进入中心 →</span>
+        </div>
       </a>
     </div>
 
@@ -110,6 +153,7 @@
         }
         currentUser = data;
         document.getElementById('username').textContent = '👋 ' + data.username;
+        document.getElementById('welcomeName').textContent = data.username;
         const bb = document.getElementById('backBtn');
         if (bb) {
           if (data.role === 'admin') {
@@ -144,6 +188,18 @@
           document.getElementById('statAnswered').textContent = d.questions.answered;
           document.getElementById('statAccuracy').textContent = d.questions.accuracy + '%';
           document.getElementById('statCheckins').textContent = d.checkins.total;
+          const streak = d.checkins.streak || 0;
+          const streakEl = document.getElementById('streakBadge');
+          if (streakEl) streakEl.textContent = '🔥 连续学习 ' + streak + ' 天';
+          const checkedToday = d.checkins.checkedToday;
+          const badgeEl = document.getElementById('checkinBadge');
+          const btnEl = document.getElementById('checkinBtn');
+          if (checkedToday) {
+            if (badgeEl) { badgeEl.textContent = '✅ 今日已打卡'; badgeEl.classList.add('badge-checked'); }
+            if (btnEl) { btnEl.textContent = '✓ 已打卡'; btnEl.disabled = true; btnEl.style.opacity = '0.7'; btnEl.style.cursor = 'not-allowed'; }
+          } else {
+            if (badgeEl) { badgeEl.textContent = '⏰ 今日未打卡'; badgeEl.classList.add('badge-unchecked'); }
+          }
         }
       });
     }
@@ -179,6 +235,12 @@
       fetch('/api/checkin').then(r => r.json()).then(res => {
         if (res.success) {
           showToast(res.alreadyChecked ? '今日已打卡 ✓' : '打卡成功！🎉 累计 ' + (res.totalCheckins || 0) + ' 天', 'success');
+          const badgeEl = document.getElementById('checkinBadge');
+          const btnEl = document.getElementById('checkinBtn');
+          if (badgeEl) { badgeEl.textContent = '✅ 今日已打卡'; badgeEl.classList.remove('badge-unchecked'); badgeEl.classList.add('badge-checked'); }
+          if (btnEl) { btnEl.textContent = '✓ 已打卡'; btnEl.disabled = true; btnEl.style.opacity = '0.7'; btnEl.style.cursor = 'not-allowed'; }
+          const streakEl = document.getElementById('streakBadge');
+          if (streakEl && res.streak !== undefined) streakEl.textContent = '🔥 连续学习 ' + res.streak + ' 天';
           loadStats();
         } else {
           showToast(res.message || '打卡失败', 'error');

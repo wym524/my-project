@@ -1316,3 +1316,249 @@ body {
     gap: 10px;
   }
 }
+
+/* ---------- 欢迎横幅 ---------- */
+.welcome-banner {
+  background: linear-gradient(135deg, #dbeafe 0%, #dcfce7 100%);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  border: 1px solid #bfdbfe;
+  flex-wrap: wrap;
+}
+
+.welcome-banner-admin {
+  background: linear-gradient(135deg, #ede9fe 0%, #fae8ff 100%);
+  border: 1px solid #ddd6fe;
+}
+
+.welcome-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.welcome-greeting {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.welcome-hi {
+  color: #1e3a8a;
+}
+
+.welcome-name {
+  color: #1d4ed8;
+}
+
+.welcome-wave {
+  font-size: 18px;
+}
+
+.welcome-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.welcome-badge,
+.welcome-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.8);
+  color: #475569;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.badge-checked {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.badge-unchecked {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-checkin {
+  font-size: 15px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+.welcome-banner-admin .btn-checkin {
+  background: #7c3aed;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+}
+
+.welcome-banner-admin .welcome-hi,
+.welcome-banner-admin .welcome-name,
+.welcome-banner-admin .welcome-greeting {
+  color: #5b21b6;
+}
+
+/* ---------- 增强型模块卡片 ---------- */
+.module-grid-enhanced {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.module-card-plus {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  position: relative;
+  overflow: hidden;
+}
+
+.module-card-plus::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  opacity: 0;
+  transition: opacity 0.3s;
+  border-radius: 14px 14px 0 0;
+}
+
+.module-card-plus:hover::before {
+  opacity: 1;
+}
+
+.module-card-plus:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: #dbeafe;
+}
+
+.mc-icon {
+  font-size: 40px;
+  margin-bottom: 14px;
+  line-height: 1;
+}
+
+.mc-title-lg {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 8px;
+}
+
+.mc-desc-lg {
+  font-size: 13.5px;
+  color: #64748b;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  flex: 1;
+}
+
+.mc-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.mc-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.mc-tag-blue {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.mc-tag-purple {
+  background: #ede9fe;
+  color: #6b21a8;
+}
+
+.mc-tag-green {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mc-tag-yellow {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.mc-tag-pink {
+  background: #fce7f3;
+  color: #9d174d;
+}
+
+.mc-action {
+  font-size: 12.5px;
+  color: #64748b;
+  font-weight: 500;
+  transition: color 0.2s, transform 0.2s;
+}
+
+.module-card-plus:hover .mc-action {
+  color: #2563eb;
+  transform: translateX(3px);
+}
+
+@media (max-width: 640px) {
+  .welcome-banner {
+    padding: 18px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .welcome-actions {
+    width: 100%;
+  }
+
+  .btn-checkin {
+    width: 100%;
+    text-align: center;
+  }
+
+  .mc-icon {
+    font-size: 36px;
+  }
+
+  .mc-title-lg {
+    font-size: 17px;
+  }
+}

@@ -21,53 +21,103 @@
     <h1 class="page-title">🛡️ 管理员主页</h1>
     <p class="page-subtitle">管理学习内容、任务分配和系统配置</p>
 
-    <div class="module-grid">
-      <a href="admin-tasks.html" class="module-card" style="text-decoration:none; cursor:pointer;">
-        <div class="icon" style="font-size:36px; margin-bottom:12px;">📋</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">任务管理</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">创建学习任务、分配给用户、查看完成情况</div>
+    <!-- 管理员欢迎横幅 -->
+    <div class="welcome-banner welcome-banner-admin" id="welcomeBanner">
+      <div class="welcome-info">
+        <div class="welcome-greeting">
+          <span class="welcome-hi">Hi，管理员</span>
+          <span class="welcome-name" id="welcomeName">管理员</span>
+          <span class="welcome-wave">👋</span>
+        </div>
+        <div class="welcome-meta">
+          <span class="welcome-badge badge-checked">🛡️ 管理员权限</span>
+          <span class="welcome-streak">⚙️ 系统控制台</span>
+        </div>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn-primary btn-checkin" onclick="logout()">🚪 退出登录</button>
+      </div>
+    </div>
+
+    <div class="module-grid module-grid-enhanced">
+      <a href="admin-tasks.html" class="module-card module-card-plus">
+        <div class="mc-icon">📋</div>
+        <div class="mc-title-lg">任务管理</div>
+        <div class="mc-desc-lg">创建学习任务、分配给用户、查看完成情况</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-blue">任务调度</span>
+          <span class="mc-action">进入管理 →</span>
+        </div>
       </a>
 
-      <div class="module-card" style="cursor:pointer;" onclick="manageWords()">
-        <div style="font-size:36px; margin-bottom:12px;">📖</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">单词管理</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加单词、管理词库内容</div>
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="manageWords()">
+        <div class="mc-icon">📖</div>
+        <div class="mc-title-lg">单词管理</div>
+        <div class="mc-desc-lg">查看、添加、删除词库单词</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-purple">词库维护</span>
+          <span class="mc-action">进入管理 →</span>
+        </div>
       </div>
 
-      <div class="module-card" style="cursor:pointer;" onclick="manageQuestions()">
-        <div style="font-size:36px; margin-bottom:12px;">📝</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">题目管理</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加真题、选择题和填空题</div>
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="manageQuestions()">
+        <div class="mc-icon">📝</div>
+        <div class="mc-title-lg">题目管理</div>
+        <div class="mc-desc-lg">查看、添加、删除真题题目</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-yellow">题库维护</span>
+          <span class="mc-action">进入管理 →</span>
+        </div>
       </div>
 
-      <div class="module-card" style="cursor:pointer;" onclick="manageSpeaking()">
-        <div style="font-size:36px; margin-bottom:12px;">🎤</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">口语话题</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加口语话题和参考回答</div>
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="manageSpeaking()">
+        <div class="mc-icon">🎤</div>
+        <div class="mc-title-lg">口语话题</div>
+        <div class="mc-desc-lg">批量添加口语话题和参考回答</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-green">话题库</span>
+          <span class="mc-action">进入管理 →</span>
+        </div>
       </div>
 
-      <div class="module-card" style="cursor:pointer;" onclick="manageWriting()">
-        <div style="font-size:36px; margin-bottom:12px;">✍️</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">写作题目</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">批量添加作文题目、思路和范文</div>
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="manageWriting()">
+        <div class="mc-icon">✍️</div>
+        <div class="mc-title-lg">写作题目</div>
+        <div class="mc-desc-lg">批量添加作文题目、思路和范文</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-pink">作文库</span>
+          <span class="mc-action">进入管理 →</span>
+        </div>
       </div>
 
-      <a href="ai-config.html" class="module-card" style="text-decoration:none; cursor:pointer;">
-        <div style="font-size:36px; margin-bottom:12px;">🤖</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">AI 配置</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">设置 AI 提供商、API Key 和基础 URL</div>
+      <a href="ai-config.html" class="module-card module-card-plus">
+        <div class="mc-icon">🤖</div>
+        <div class="mc-title-lg">AI 配置</div>
+        <div class="mc-desc-lg">配置 AI 提供商和 API Key</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-blue">系统配置</span>
+          <span class="mc-action">进入配置 →</span>
+        </div>
       </a>
 
-      <a href="learning.html" class="module-card" style="text-decoration:none; cursor:pointer;">
-        <div style="font-size:36px; margin-bottom:12px;">📊</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">学习统计</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">查看整体学习数据和统计信息</div>
+      <a href="learning.html" class="module-card module-card-plus">
+        <div class="mc-icon">📊</div>
+        <div class="mc-title-lg">数据统计</div>
+        <div class="mc-desc-lg">查看全站学习数据</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-purple">数据洞察</span>
+          <span class="mc-action">查看数据 →</span>
+        </div>
       </a>
 
-      <div class="module-card" style="cursor:pointer;" onclick="goToStudent()">
-        <div style="font-size:36px; margin-bottom:12px;">🎓</div>
-        <div style="font-size:18px; font-weight:600; color:#1e3a8a; margin-bottom:6px;">学生视图</div>
-        <div style="color:#6b7280; font-size:13px; line-height:1.6;">切换到学生主页体验</div>
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="goToStudent()">
+        <div class="mc-icon">🎓</div>
+        <div class="mc-title-lg">学生视图</div>
+        <div class="mc-desc-lg">切换到学生主页体验</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-yellow">视角切换</span>
+          <span class="mc-action">进入查看 →</span>
+        </div>
       </div>
     </div>
 
@@ -110,6 +160,8 @@
         }
         currentUser = data;
         document.getElementById('username').textContent = '👋 ' + data.username;
+        const welcomeName = document.getElementById('welcomeName');
+        if (welcomeName) welcomeName.textContent = data.username;
       }).catch(() => { window.location.href = 'login.html'; });
     }
 

@@ -28,7 +28,7 @@
         <option value="小作文">小作文 (Task 1)</option>
       </select>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
-      <button class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
+      <button id="aiBtnWriting" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
     </div>
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
@@ -171,7 +171,7 @@
           <label style="font-size:14px; font-weight:600; color:#1f2937; display:block; margin-bottom:8px;">✍️ 请在下方输入您的作文:</label>
           <textarea id="userAnswer" rows="12" placeholder="Write your essay here..." style="width:100%; padding:14px 16px; border:1.5px solid #d1d5db; border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical; line-height:1.8; transition:border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#d1d5db'"></textarea>
           <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
-            <button class="btn-primary" onclick="submitToAI()">🤖 AI 批改作文</button>
+            <button id="aiBtnWritingEval" class="btn-primary" onclick="submitToAI()">🤖 AI 批改作文</button>
             <button class="btn-secondary" onclick="clearAnswer()">清空</button>
             <span id="wordCounter" style="color:#6b7280; font-size:13px; align-self:center; margin-left:auto;">字数: 0</span>
           </div>
@@ -210,18 +210,25 @@
       document.getElementById('aiEvalResult').innerHTML = '';
     }
 
-    function submitToAI() {
+    async function submitToAI() {
+      const btn = document.getElementById('aiBtnWritingEval') || document.querySelector('button[onclick="submitToAI()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 批改中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const userAnswer = document.getElementById('userAnswer').value.trim();
       if (!userAnswer) {
         showToast('请先输入作文内容', 'info');
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
         return;
       }
       document.getElementById('aiEvalResult').innerHTML = '<div style="padding:14px; background:#f0f9ff; border-radius:8px; text-align:center; color:#1e40af;">🤖 AI 正在批改中，请稍候...</div>';
-      fetch('/api/ai/writing/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: currentWriting ? currentWriting.prompt : '', answer: userAnswer })
-      }).then(r => r.json()).then(res => {
+      try {
+        const r = await fetch('/api/ai/writing/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: currentWriting ? currentWriting.prompt : '', answer: userAnswer })
+        });
+        const res = await r.json();
         if (res.success) {
           document.getElementById('aiEvalResult').innerHTML = `
             <div style="padding:18px; background:#ecfdf5; border-radius:10px; border-left:4px solid #10b981; color:#065f46; font-size:14px; line-height:1.8; white-space:pre-wrap;">
@@ -232,9 +239,11 @@
         } else {
           document.getElementById('aiEvalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ ${escapeHtml(res.message || '批改失败')}</div>`;
         }
-      }).catch(() => {
+      } catch (err) {
         document.getElementById('aiEvalResult').innerHTML = `<div style="padding:14px; background:#fef2f2; border-radius:8px; color:#991b1b;">❌ 请求错误</div>`;
-      });
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
+      }
     }
 
     function escapeHtml(str) {
@@ -257,6 +266,10 @@
     }
 
     async function aiGenerate() {
+      const btn = document.getElementById('aiBtnWriting') || document.querySelector('button[onclick="aiGenerate()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 处理中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const typeEl = document.getElementById('typeFilter');
       const type = typeEl ? typeEl.value : '大作文';
       showGen('🤖 正在调用 AI 生成' + type + '题目，请稍候...');
@@ -273,6 +286,8 @@
       } catch (e) {
         showGen('❌ 网络错误: ' + e.message);
         setTimeout(() => showGen(''), 4000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
       }
     }
 

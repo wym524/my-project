@@ -36,12 +36,16 @@
       </label>
       <button class="btn-primary btn-sm" onclick="applyFilter()">应用筛选</button>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
-      <button class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerateWords()">🤖 AI 生成单词</button>
+      <button id="aiBtnWords" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerateWords()">🤖 AI 生成单词</button>
     </div>
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
     <div class="split-layout">
       <div class="list-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:10px 12px; background:#f8fafc; border-radius:8px; font-size:13px;">
+          <div style="color:#374151;"><span id="statKnown" style="color:#065f46; font-weight:600;">0</span> / <span id="statTotal" style="font-weight:600;">0</span> 已掌握</div>
+          <div style="color:#6b7280;">掌握率: <span id="statRate" style="color:#2563eb; font-weight:600;">0%</span></div>
+        </div>
         <div class="section-title" style="margin-bottom:12px; font-size:15px;">单词列表</div>
         <div id="wordList" style="max-height:65vh; overflow-y:auto;">
           <div class="loading-text">加载中...</div>
@@ -123,18 +127,33 @@
     }
 
     function renderList() {
+      const total = words.length;
+      const knownCount = words.filter(w => knownIds.has(w.id)).length;
+      const rate = total > 0 ? Math.round(knownCount * 100 / total) : 0;
+      const sk = document.getElementById('statKnown');
+      if (sk) sk.textContent = knownCount;
+      const st = document.getElementById('statTotal');
+      if (st) st.textContent = total;
+      const sr = document.getElementById('statRate');
+      if (sr) sr.textContent = rate + '%';
       const container = document.getElementById('wordList');
       if (words.length === 0) {
         container.innerHTML = '<div class="empty-state">暂无单词</div>';
         return;
       }
-      container.innerHTML = words.map((w, idx) => `
-        <div class="list-item ${currentIndex === idx ? 'active' : ''}" onclick="selectWord(${idx})" style="cursor:pointer; padding:10px 12px; margin-bottom:4px; border-radius:6px; transition:all 0.2s;">
-          <div style="font-weight:600; color:#1e40af; font-size:15px;">${w.word}</div>
-          <div class="item-sub" style="color:#6b7280; font-size:12px; margin-top:2px;">${w.meaning}</div>
-          ${knownIds.has(w.id) ? '<span style="display:inline-block; font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:3px; margin-top:2px;">已掌握</span>' : ''}
+      container.innerHTML = words.map((w, idx) => {
+        const known = knownIds.has(w.id);
+        return `
+        <div class="list-item ${currentIndex === idx ? 'active' : ''}" onclick="selectWord(${idx})" style="cursor:pointer; padding:10px 12px 10px 14px; margin-bottom:6px; border-radius:8px; transition:all 0.2s; border-left:4px solid ${known ? '#10b981' : '#d1d5db'};">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="flex:1;">
+              <div style="font-weight:600; color:#1e40af; font-size:15px;">${w.word}</div>
+              <div class="item-sub" style="color:#6b7280; font-size:12px; margin-top:2px;">${w.meaning}</div>
+            </div>
+            <div style="font-size:18px; margin-left:8px;">${known ? '✅' : '⬜'}</div>
+          </div>
         </div>
-      `).join('');
+      `}).join('');
     }
 
     function selectWord(idx) {
@@ -220,8 +239,13 @@
     }
 
     async function aiGenerateWords() {
+      const btn = document.getElementById('aiBtnWords') || document.querySelector('button[onclick="aiGenerateWords()"]');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      
       const cat = document.getElementById('categoryFilter').value || '高频';
       showGen('🤖 正在调用 AI 生成' + cat + '类单词，请稍候...');
+      
       try {
         const r = await fetch('/api/ai/generate-words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: cat, count: 10 }) });
         const data = await r.json();
@@ -235,6 +259,8 @@
       } catch (e) {
         showGen('❌ 网络错误: ' + e.message);
         setTimeout(() => showGen(''), 4000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
       }
     }
 
