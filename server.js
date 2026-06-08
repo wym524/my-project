@@ -251,6 +251,21 @@ db.exec(`
   );
 `);
 
+// notifications 管理员强制弹窗/提醒
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_username TEXT DEFAULT '',
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    level TEXT DEFAULT 'normal',
+    sound_enabled INTEGER DEFAULT 1,
+    created_by TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    acknowledged TEXT DEFAULT ''
+  );
+`);
+
 // ---------- 管理员账号初始化 ----------
 const adminUsername = '001';
 const adminPassword = '141242';
@@ -1998,6 +2013,82 @@ app.delete('/api/comments/:id', (req, res) => {
     return res.status(403).json({ success: false, message: '没有权限删除' });
   }
   db.prepare('DELETE FROM comments WHERE id = ?').run(commentId);
+  return res.json({ success: true });
+});
+
+// ---------- 强制提醒/弹窗 ----------
+// 管理员：发送一条强制提醒
+app.post('/api/admin/notifications', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const { target_username, title, content, level, sound_enabled } = req.body || {};
+  if (!title || !title.toString().trim()) return res.status(400).json({ success: false, message: '标题不能为空' });
+  if (!content || !content.toString().trim()) return res.status(400).json({ success: false, message: '内容不能为空' });
+  const info = db.prepare('INSERT INTO notifications (target_username, title, content, level, sound_enabled, created_by) VALUES (?, ?, ?, ?, ?, ?)').run(
+    (target_username || '').toString(),
+    title.toString().trim().slice(0, 100),
+    content.toString().trim().slice(0, 500),
+    (level || 'normal').toString().slice(0, 20),
+    sound_enabled === 0 || sound_enabled === '0' || sound_enabled === false ? 0 : 1,
+    session.username || ''
+  );
+  const n = db.prepare('SELECT * FROM notifications WHERE id = ?').get(info.lastInsertRowid);
+  return res.json({ success: true, notification: n });
+});
+
+// 管理员：查看所有通知记录
+app.get('/api/admin/notifications', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const list = db.prepare('SELECT * FROM notifications ORDER BY id DESC LIMIT 100').all();
+  return res.json({ success: true, data: list.map(n => ({
+    ...n,
+    ack_users: (n.acknowledged || '').split(',').filter(x => x).length
+  })) });
+});
+
+// 管理员：删除通知
+app.delete('/api/admin/notifications/:id', (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  db.prepare('DELETE FROM notifications WHERE id = ?').run(Number(req.params.id));
+  return res.json({ success: true });
+});
+
+// 普通用户：读取自己未确认的强制提醒（只返回自己相关的）
+app.get('/api/my-notifications', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const username = session.username;
+  const all = db.prepare('SELECT * FROM notifications ORDER BY id DESC LIMIT 50').all();
+  const pending = all.filter(n => {
+    // 目标用户匹配（空=全员）
+    const target = (n.target_username || '').trim();
+    if (target && target !== username) return false;
+    // 已确认则排除
+    const ack = (n.acknowledged || '').split(',').filter(x => x);
+    return ack.indexOf(username) === -1;
+  }).map(n => ({
+    id: n.id, title: n.title, content: n.content, level: n.level,
+    sound_enabled: n.sound_enabled, created_by: n.created_by, created_at: n.created_at
+  }));
+  return res.json({ success: true, data: pending });
+});
+
+// 普通用户：确认某条提醒
+app.post('/api/my-notifications/:id/ack', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const id = Number(req.params.id);
+  const n = db.prepare('SELECT * FROM notifications WHERE id = ?').get(id);
+  if (!n) return res.status(404).json({ success: false, message: '通知不存在' });
+  // 目标校验
+  const target = (n.target_username || '').trim();
+  if (target && target !== session.username) return res.status(403).json({ success: false, message: '无权确认此通知' });
+  // 追加到 acknowledged
+  const existing = (n.acknowledged || '').split(',').filter(x => x);
+  if (existing.indexOf(session.username) === -1) existing.push(session.username);
+  db.prepare('UPDATE notifications SET acknowledged = ? WHERE id = ?').run(existing.join(','), id);
   return res.json({ success: true });
 });
 

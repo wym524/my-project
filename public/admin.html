@@ -140,6 +140,16 @@
         </div>
       </a>
 
+      <div class="module-card module-card-plus" style="cursor:pointer;" onclick="openNoticeAdmin()">
+        <div class="mc-icon">📢</div>
+        <div class="mc-title-lg">强制提醒</div>
+        <div class="mc-desc-lg">给用户发送弹窗提醒，强制弹窗+声音</div>
+        <div class="mc-status-row">
+          <span class="mc-tag mc-tag-purple">管理</span>
+          <span class="mc-action">去发送 →</span>
+        </div>
+      </div>
+
       <a href="journal.html" class="module-card module-card-plus" style="text-decoration:none;">
         <div class="mc-icon">💭</div>
         <div class="mc-title-lg">心情日记</div>
@@ -229,6 +239,58 @@
 
       <div id="quizResultArea" style="margin-top:20px;"></div>
       <div id="quizListArea" style="margin-top:20px;"></div>
+    </div>
+
+    <div id="noticePanel" style="display:none; margin-top:20px;">
+      <div style="background:#fff; border-radius:12px; padding:24px; box-shadow:0 2px 12px rgba(0,0,0,0.05);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <div>
+            <h2 style="font-size:20px; color:#1f2937; margin-bottom:4px;">📢 强制提醒管理</h2>
+            <div style="font-size:13px; color:#6b7280;">发送给用户发送强制弹窗提醒，包含声音和全屏弹窗，用户不点击确认无法操作</div>
+          </div>
+          <button onclick="closePanels()" style="padding:8px 16px; background:#f3f4f6; color:#374151; border:none; border-radius:6px; cursor:pointer; font-size:13px;">← 返回主页</button>
+        </div>
+
+        <!-- 发送表单 -->
+        <div style="background:#f9fafb; border-radius:10px; padding:16px; margin-bottom:16px;">
+          <div style="font-size:14px; font-weight:600; color:#1f2937; margin-bottom:12px;">✏️ 发送新通知</div>
+          <div style="display:grid; gap:10px; grid-template-columns:1fr 1fr;">
+            <div>
+              <label style="font-size:12px; font-weight:600; color:#374151; display:block; margin-bottom:4px;">📌 目标用户</label>
+              <select id="noticeTarget" style="width:100%; padding:8px 10px; border:1.5px solid #d1d5db; border-radius:6px; font-size:13px;">
+                <option value="">所有用户</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px; font-weight:600; color:#374151; display:block; margin-bottom:4px;">⚠️ 提醒级别</label>
+              <select id="noticeLevel" style="width:100%; padding:8px 10px; border:1.5px solid #d1d5db; border-radius:6px; font-size:13px;">
+                <option value="normal">普通提醒</option>
+                <option value="critical">严重（红色）</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <label style="font-size:12px; font-weight:600; color:#374151; display:block; margin-bottom:4px;">📝 标题</label>
+            <input type="text" id="noticeTitle" placeholder="例如：学习提醒" style="width:100%; padding:8px 10px; border:1.5px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box;">
+          </div>
+          <div style="margin-top:10px;">
+            <label style="font-size:12px; font-weight:600; color:#374151; display:block; margin-bottom:4px;">📄 内容</label>
+            <textarea id="noticeContent" rows="3" placeholder="请输入提醒内容" style="width:100%; padding:8px 10px; border:1.5px solid #d1d5db; border-radius:6px; font-size:13px; box-sizing:border-box; resize:vertical; font-family:inherit;"></textarea>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+            <label style="font-size:12px; font-weight:600; color:#374151; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="noticeSound" checked> 🔔 播放提示音
+            </label>
+          </div>
+          <button onclick="sendNotice()" id="sendNoticeBtn" style="margin-top:12px; padding:10px 24px; background:linear-gradient(90deg,#2563eb,#7c3aed); color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer;">📤 发送提醒</button>
+        </div>
+
+        <!-- 已发送通知列表 -->
+        <div>
+          <div style="font-size:14px; font-weight:600; color:#1f2937; margin-bottom:12px;">📋 已发送通知</div>
+          <div id="noticeList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -326,6 +388,7 @@
     function closePanels() {
       document.getElementById('userViewPanel').style.display = 'none';
       document.getElementById('quizGenPanel').style.display = 'none';
+      document.getElementById('noticePanel').style.display = 'none';
     }
 
     function openUserView() {
@@ -596,6 +659,94 @@
       if (!confirm('确认删除该练习卷？')) return;
       fetch('/api/admin/quizzes/' + id, { method: 'DELETE' }).then(r => r.json()).then(res => {
         if (res.success) { loadQuizList(); alert('删除成功'); }
+        else alert(res.message || '删除失败');
+      });
+    }
+
+    // ====== 强制提醒 ======
+    function openNoticeAdmin() {
+      closePanels();
+      document.getElementById('noticePanel').style.display = 'block';
+      // 加载用户列表到下拉框
+      fetch('/api/admin/users').then(r => r.json()).then(res => {
+        if (res.success && res.data) {
+          const users = res.data.filter(u => u.role !== 'admin');
+          const sel = document.getElementById('noticeTarget');
+          sel.innerHTML = '<option value="">所有用户</option>' +
+            users.map(u => '<option value="' + escapeHtml(u.username) + '">' + escapeHtml(u.username) + '</option>').join('');
+        }
+      }).catch(() => {});
+      loadNotices();
+      document.getElementById('noticePanel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function sendNotice() {
+      const target = document.getElementById('noticeTarget').value;
+      const title = document.getElementById('noticeTitle').value.trim();
+      const content = document.getElementById('noticeContent').value.trim();
+      const level = document.getElementById('noticeLevel').value;
+      const sound = document.getElementById('noticeSound').checked ? 1 : 0;
+      if (!title || !content) { alert('请填写标题和内容'); return; }
+      const btn = document.getElementById('sendNoticeBtn');
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = '⏳ 发送中...';
+      fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_username: target, title, content, level, sound_enabled: sound })
+      }).then(r => r.json()).then(res => {
+        if (res.success) {
+          alert('✅ 提醒已发送！');
+          document.getElementById('noticeTitle').value = '';
+          document.getElementById('noticeContent').value = '';
+          loadNotices();
+        } else {
+          alert(res.message || '发送失败');
+        }
+      }).catch(() => alert('网络错误')).finally(() => {
+        btn.disabled = false;
+        btn.textContent = oldText;
+      });
+    }
+
+    function loadNotices() {
+      fetch('/api/admin/notifications').then(r => r.json()).then(res => {
+        const list = document.getElementById('noticeList');
+        if (!res.success || !res.data || res.data.length === 0) {
+          list.innerHTML = '<div style="color:#9ca3af; padding:12px; font-size:13px; text-align:center;">还没有发送过通知</div>';
+          return;
+        }
+        list.innerHTML = res.data.map(n => `
+          <div style="background:#f9fafb; padding:14px 16px; border-radius:8px; border:1px solid #e5e7eb;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+              <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                  <span style="font-weight:700; color:#1f2937;">${escapeHtml(n.title)}</span>
+                  <span style="padding:1px 6px; background:${n.level === 'critical' ? '#fee2e2' : '#dbeafe'}; color:${n.level === 'critical' ? '#991b1b' : '#1e40af'}; border-radius:4px; font-size:11px; font-weight:600;">${n.level === 'critical' ? '⚠️ 严重' : '📢 普通'}</span>
+                  <span style="color:#9ca3af; font-size:12px;">${(n.created_at || '').slice(0, 16)}</span>
+                </div>
+                <div style="color:#374151; font-size:13px; line-height:1.6; white-space:pre-wrap; margin-bottom:6px;">${escapeHtml(n.content)}</div>
+                <div style="font-size:12px; color:#6b7280;">
+                  👤 ${escapeHtml(n.created_by || '')} |
+                  📌 目标: ${n.target_username ? escapeHtml(n.target_username) : '所有用户'} |
+                  🔔 声音: ${n.sound_enabled ? '开启' : '关闭'} |
+                  ✅ 已确认: ${n.ack_users || 0} 人
+                </div>
+              </div>
+              <button onclick="deleteNotice(${n.id})" style="padding:4px 10px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:6px; cursor:pointer; font-size:12px;">删除</button>
+            </div>
+          </div>
+        `).join('');
+      }).catch(() => {
+        document.getElementById('noticeList').innerHTML = '<div style="color:#991b1b; padding:12px; font-size:13px; text-align:center;">加载失败</div>';
+      });
+    }
+
+    function deleteNotice(id) {
+      if (!confirm('确定删除此通知？')) return;
+      fetch('/api/admin/notifications/' + id, { method: 'DELETE' }).then(r => r.json()).then(res => {
+        if (res.success) { loadNotices(); }
         else alert(res.message || '删除失败');
       });
     }
