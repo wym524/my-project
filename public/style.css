@@ -285,47 +285,51 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
   color: #ffffff;
-  padding: 16px 28px;
-  border-radius: 12px;
-  box-shadow: 0 6px 24px rgba(30, 64, 175, 0.2);
-  margin-bottom: 24px;
+  padding: 14px 24px;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(30, 58, 138, 0.25);
+  margin-bottom: 22px;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px;
 }
 
 .page-topbar .brand {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .page-topbar .right-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .page-topbar .username {
-  font-size: 14px;
-  opacity: 0.95;
+  font-size: 13px;
+  opacity: 0.9;
+  font-weight: 500;
 }
 
 .page-topbar .logout-btn {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 6px 14px;
-  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  padding: 5px 14px;
+  border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .page-topbar .logout-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .admin-badge-red {
