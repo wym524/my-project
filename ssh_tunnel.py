@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 import paramiko
 import socket
-import sys
+import getpass
 
 PROXY_HOST = '127.0.0.1'
 PROXY_PORT = 18080
 SERVER_HOST = '124.223.86.48'
 SERVER_PORT = 22
 USERNAME = 'root'
-PASSWORD = ''  # Add your password here if needed
+PASSWORD = 'Xx740321.'
 
 def create_tunnel_sock():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,33 +29,28 @@ def create_tunnel_sock():
     return sock
 
 if __name__ == "__main__":
-    # Get password from user if not set
-    if not PASSWORD:
-        import getpass
-        PASSWORD = getpass.getpass(f"Password for {USERNAME}@{SERVER_HOST}: ")
-    
-    # Create tunnel
     sock = create_tunnel_sock()
     
-    # Create SSH client
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     
-    # Connect through the tunnel socket
     client.connect(
         hostname=SERVER_HOST,
         port=SERVER_PORT,
         username=USERNAME,
         password=PASSWORD,
-        sock=sock,  # Use our tunnel socket instead of direct connection
+        sock=sock,
         allow_agent=False,
         look_for_keys=False
     )
     
     print("SSH connected!")
     
-    # Run a test command
-    stdin, stdout, stderr = client.exec_command('grep -c "studentConnections.has" /opt/my-app/server.js')
-    print("Result:", stdout.read().decode().strip())
+    # Check notification code
+    stdin, stdout, stderr = client.exec_command('grep -c "targetUser.*studentConnections" /opt/my-app/server.js.new')
+    print("server.js.new targetUser check:", stdout.read().decode().strip())
+    
+    stdin, stdout, stderr = client.exec_command('grep -c "targetUser.*studentConnections" /opt/my-app/server.js')
+    print("server.js targetUser check:", stdout.read().decode().strip())
     
     client.close()
