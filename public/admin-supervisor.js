@@ -67,10 +67,10 @@
     const now = Date.now();
     let changed = false;
     for (const [u, info] of frames.entries()) {
-      if (now - info.ts > 10000) { frames.delete(u); changed = true; }
+      if (now - info.ts > 5000) { frames.delete(u); changed = true; }
     }
     if (changed) updateImages();
-  }, 5000);
+  }, 3000);
 
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -95,7 +95,7 @@
           for (const item of msg.data) frames.set(item.username, { frame: item.frame, ts: item.ts });
           const now = Date.now();
           for (const [u, info] of frames.entries()) {
-            if (now - info.ts > 10000) frames.delete(u);
+            if (now - info.ts > 5000) frames.delete(u);
           }
           updateImages();
         } else if (msg.type === 'offline') {

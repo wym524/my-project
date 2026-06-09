@@ -2180,13 +2180,13 @@ setInterval(() => {
       try { a.send(payload); } catch (e) {}
     }
   }
-}, 500);
+}, 250);
 
-// 每 3 秒清理超过 8 秒没收到新帧的学生（视为离线）
+// 每 3 秒清理超过 4 秒没收到新帧的学生（视为离线）
 setInterval(() => {
   const now = Date.now();
   for (const [u, info] of liveFrames.entries()) {
-    if (now - info.ts > 8000) {
+    if (now - info.ts > 4000) {
       liveFrames.delete(u);
       const payload = JSON.stringify({ type: 'offline', username: u });
       for (const a of adminConnections) {

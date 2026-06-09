@@ -103,7 +103,7 @@
             p.then(function () {
               console.log('[监督模式] ✓ video.play() 成功，开始推送帧');
               if (captureTimer) clearInterval(captureTimer);
-              captureTimer = setInterval(captureAndSend, 300);
+              captureTimer = setInterval(captureAndSend, 100);
             }).catch(function (err) {
               console.warn('[监督模式] video.play() promise 失败，重试:', err);
               setTimeout(tryPlay, 500);
@@ -111,7 +111,7 @@
           } else {
             console.log('[监督模式] ✓ video.play() 同步返回，开始推送帧');
             if (captureTimer) clearInterval(captureTimer);
-            captureTimer = setInterval(captureAndSend, 300);
+            captureTimer = setInterval(captureAndSend, 100);
           }
         } catch (e) {
           console.warn('[监督模式] video.play() 异常，重试:', e);
@@ -130,14 +130,14 @@
             p.then(function () {
               console.log('[监督模式] ✓ 视频播放成功，开始推送帧');
               if (captureTimer) clearInterval(captureTimer);
-              captureTimer = setInterval(captureAndSend, 300);
+              captureTimer = setInterval(captureAndSend, 100);
             }).catch(function (err) {
               console.warn('[监督模式] 视频播放失败，重试:', err);
               setTimeout(function () { try { videoEl.play(); } catch (e) {} }, 1000);
             });
           } else {
             if (captureTimer) clearInterval(captureTimer);
-            captureTimer = setInterval(captureAndSend, 300);
+            captureTimer = setInterval(captureAndSend, 100);
           }
         } catch (e) {
           console.warn('[监督模式] play() 异常:', e);
