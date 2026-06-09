@@ -32,6 +32,59 @@
     return null;
   }
 
+  // ========== 弹窗+声音函数 ==========
+  function showNotificationAlert(msg) {
+    // 创建弹窗
+    const popup = document.createElement('div');
+    popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:999999;font-family:Arial,sans-serif;max-width:400px;';
+    popup.innerHTML = '<h3 style="margin:0 0 10px 0;color:#333;">' + (msg.title || '通知') + '</h3><p style="margin:0;color:#666;">' + (msg.content || '') + '</p>';
+    
+    // 添加关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '确定';
+    closeBtn.style.cssText = 'margin-top:15px;padding:8px 20px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;';
+    closeBtn.onclick = function() {
+      document.body.removeChild(popup);
+    };
+    popup.appendChild(closeBtn);
+    
+    document.body.appendChild(popup);
+    
+    // 播放声音（Web Audio API 生成 beep）
+     try {
+       var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+       var oscillator = audioCtx.createOscillator();
+       var gainNode = audioCtx.createGain();
+       oscillator.connect(gainNode);
+       gainNode.connect(audioCtx.destination);
+       oscillator.frequency.value = 880;
+       oscillator.type = 'sine';
+       gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+       gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+       oscillator.start(audioCtx.currentTime);
+       oscillator.stop(audioCtx.currentTime + 0.5);
+       // 响3次
+       setTimeout(function() {
+         var o2 = audioCtx.createOscillator();
+         var g2 = audioCtx.createGain();
+         o2.connect(g2); g2.connect(audioCtx.destination);
+         o2.frequency.value = 880; o2.type = 'sine';
+         g2.gain.setValueAtTime(0.5, audioCtx.currentTime);
+         g2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+         o2.start(audioCtx.currentTime); o2.stop(audioCtx.currentTime + 0.5);
+       }, 600);
+       setTimeout(function() {
+         var o3 = audioCtx.createOscillator();
+         var g3 = audioCtx.createGain();
+         o3.connect(g3); g3.connect(audioCtx.destination);
+         o3.frequency.value = 1100; o3.type = 'sine';
+         g3.gain.setValueAtTime(0.5, audioCtx.currentTime);
+         g3.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+         o3.start(audioCtx.currentTime); o3.stop(audioCtx.currentTime + 0.3);
+       }, 1200);
+     } catch (e) {}
+   }
+
   // ========== WebSocket 连接 ==========
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -57,6 +110,14 @@
     ws.onerror = function (e) {
       console.error('[监督模式] WebSocket 错误:', e);
       try { ws.close(); } catch (e) {}
+    };
+    ws.onmessage = function (evt) {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'notification') {
+          showNotificationAlert(msg);
+        }
+      } catch (e) {}
     };
   }
 

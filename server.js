@@ -2049,6 +2049,27 @@ app.post('/api/admin/notifications', (req, res) => {
     session.username || ''
   );
   const n = db.prepare('SELECT * FROM notifications WHERE id = ?').get(info.lastInsertRowid);
+
+  // ========== 立即通过 WebSocket 推送给学生 ==========
+  const targetUser = (target_username || '').toString();
+  if (targetUser && studentConnections.has(targetUser)) {
+    const wsPayload = JSON.stringify({
+      type: 'notification',
+      id: n.id,
+      title: n.title,
+      content: n.content,
+      level: n.level,
+      sound_enabled: n.sound_enabled,
+      from: session.username
+    });
+    try {
+      const studentWs = studentConnections.get(targetUser);
+      if (studentWs && studentWs.readyState === WebSocket.OPEN) {
+        studentWs.send(wsPayload);
+      }
+    } catch (e) {}
+  }
+
   return res.json({ success: true, notification: n });
 });
 
