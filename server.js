@@ -1242,19 +1242,29 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-// ---------- AI 调用通用工具 ----------
-// ---------- AI 调用通用工具（支持两种调用方式：
-// 1. callAI(messagesArray, config)  或
-// 2. callAI(config, promptString)
-const callAI = (arg1, arg2, modelOverride = null) => {
-  // 智能识别参数类型
-  let messages = typeof arg1 === 'string' ? [{ role: 'user', content: arg1 }] :
-              Array.isArray(arg1) ? arg1 :
-              (typeof arg2 === 'string' ? [{ role: 'user', content: arg2 }] : [];
-  const config = (arg1 && typeof arg1 === 'object' && !Array.isArray(arg1) && arg1.api_key ? arg1 :
-                 (arg2 && typeof arg2 === 'object' && arg2.api_key ? arg2 : null);
-  const promptStr = typeof arg1 === 'string' ? arg1 : (typeof arg2 === 'string' ? arg2 : null);
-  return new Promise((resolve, reject) => {
+// ---------- AI 调用通用工具（支持两种调用方式：callAI(config, promptString) 或 callAI(messagesArray, config)
+const callAI = (arg1, arg2, modelOverride) => {
+  // 识别参数类型
+  let messages = [];
+  let config = null;
+  let promptStr = '';
+  if (typeof arg1 === 'object' && arg1 && !Array.isArray(arg1) && arg1.api_key) {
+    config = arg1;
+  } else if (typeof arg2 === 'object' && arg2 && !Array.isArray(arg2) && arg2.api_key) {
+    config = arg2;
+  }
+  if (typeof arg1 === 'string') {
+    messages = [{ role: 'user', content: arg1 }];
+    promptStr = arg1;
+  } else if (Array.isArray(arg1)) {
+    messages = arg1;
+    promptStr = 'messages方式';
+  } else if (typeof arg2 === 'string') {
+    messages = [{ role: 'user', content: arg2 }];
+    promptStr = arg2;
+  }
+
+  return new Promise((resolve) => {
     if (!config || !config.api_key) {
       return resolve({ success: false, content: 'AI 未配置，请先在管理员面板中设置 API Key' });
     }
@@ -1269,25 +1279,25 @@ const callAI = (arg1, arg2, modelOverride = null) => {
     }
 
     // 从完整URL中提取hostname和path
-    let hostname, basePath;
-    const urlMatch = baseUrl.match(/^https?:\/\/([^\/]+)(\/.*)?$/;
+    let hostname = '';
+    let basePath = '';
+    const urlMatch = baseUrl.match(/^https?:\/\/([^\/]+)(\/.*)?$/);
     if (urlMatch) {
       hostname = urlMatch[1];
       basePath = urlMatch[2] || '';
     } else {
-      // 兼容旧格式（不带https://）
       hostname = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
       basePath = baseUrl.includes('/') ? baseUrl.replace(/^https?:\/\/[^\/]+/, '') : '';
     }
 
     // 构建完整API路径
-    const apiPath = basePath.endsWith('/chat/completions') ? basePath :
-                    basePath + '/chat/completions';
+    const apiPath = basePath.endsWith('/chat/completions') ? basePath : basePath + '/chat/completions';
 
     // 模型名称：支持自定义模型
-    const modelName = modelOverride || config.model ||
-                      (provider === 'qwen' ? 'qwen-plus' :
-                       provider === 'zhipu' ? 'glm-4' : 'gpt-3.5-turbo');
+    let modelName = modelOverride || config.model;
+    if (!modelName) {
+      modelName = provider === 'qwen' ? 'qwen-plus' : provider === 'zhipu' ? 'glm-4' : 'gpt-3.5-turbo';
+    }
 
     const postData = JSON.stringify({
       model: modelName,
@@ -1303,7 +1313,7 @@ const callAI = (arg1, arg2, modelOverride = null) => {
         'Authorization': 'Bearer ' + config.api_key
       }
     };
-    console.log('[AI] Calling:', hostname + apiPath, 'model:', modelName, 'prompt_len:', (promptStr || 'messages方式');
+    console.log('[AI] Calling:', hostname + apiPath, 'model:', modelName);
     const req = https.request(options, (resp) => {
       let data = '';
       resp.on('data', (chunk) => { data += chunk; });
