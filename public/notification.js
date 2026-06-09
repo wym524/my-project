@@ -348,6 +348,27 @@
   let canvasEl = null;
   let captureTimer = null;
 
+  // 关键区分：桌面 App vs 浏览器
+  const isElectron = window.__ELECTRON_APP__ || /electron/i.test(navigator.userAgent) ||
+    navigator.userAgentData && navigator.userAgentData.brands &&
+    navigator.userAgentData.brands.some(function (b) { return /electron/i.test(b.brand); });
+
+  // 兼容旧浏览器 getUserMedia
+  function getUM() {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      return navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    }
+    const navUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+    if (navUM) {
+      return function (constraints) {
+        return new Promise(function (resolve, reject) {
+          navUM.call(navigator, constraints, resolve, reject);
+        });
+      };
+    }
+    return null;
+  }
+
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const url = proto + '://' + location.host + '/?role=student&u=' + encodeURIComponent(username);
@@ -358,21 +379,31 @@
   }
 
   function startCapture() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-    navigator.mediaDevices.getUserMedia({
+    // Electron 环境：直接发起摄像头请求，HTTP 安全限制已在主进程关闭
+    // 浏览器环境：在 HTTPS 或 localhost 下也能工作
+    const getUserMedia = getUM();
+    if (!getUserMedia) return;
+
+    const constraints = {
       video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
       audio: false
-    }).then(function (s) {
+    };
+
+    getUserMedia(constraints).then(function (s) {
       stream = s;
       videoEl = document.createElement('video');
-      videoEl.autoplay = true; videoEl.muted = true; videoEl.playsInline = true;
+      videoEl.autoplay = true;
+      videoEl.muted = true;
+      videoEl.playsInline = true;
       videoEl.setAttribute('muted', '');
       videoEl.setAttribute('playsinline', '');
       videoEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;visibility:hidden;';
       videoEl.srcObject = stream;
       document.body.appendChild(videoEl);
       canvasEl = document.createElement('canvas');
-      canvasEl.width = 320; canvasEl.height = 240;
+      canvasEl.width = 320;
+      canvasEl.height = 240;
+      // 视频元素需要用户交互才能播放 → 但桌面 App 已关闭此限制
       var tryPlay = function () {
         try {
           var p = videoEl.play();

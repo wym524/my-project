@@ -1,22 +1,31 @@
 // Electron 主进程：把你服务器上的网站包装成 Windows 桌面 App
-// 功能：开机自启 + 关闭最小化到托盘 + 摄像头权限自动授予
-const { app, BrowserWindow, Menu, Tray, shell, nativeImage, session } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// ========== 关键：Chromium 启动参数 ==========
+// 允许 HTTP 源被视为安全源（最重要！让 HTTP 页面能访问摄像头）
+const APP_URL = 'http://124.223.86.48:3000';
+app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure',
+  APP_URL + ',http://127.0.0.1,http://localhost,http://0.0.0.0');
+
+// 禁用安全限制
+app.commandLine.appendSwitch('disable-web-security');
+app.commandLine.appendSwitch('disable-site-isolation-trials');
+app.commandLine.appendSwitch('allow-running-insecure-content');
+app.commandLine.appendSwitch('ignore-certificate-errors');
+
+// 媒体流相关
+app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
+app.commandLine.appendSwitch('no-user-gesture-required');
+app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,AutoplayPolicy');
+
 // ========== 基础配置 ==========
-const TARGET_URL = 'http://124.223.86.48:3000/';
-const SECURE_ORIGIN = 'http://124.223.86.48:3000';
+const TARGET_URL = APP_URL + '/';
 const isDev = !app.isPackaged;
 const APP_NAME = '雅思学习空间';
 
-// 允许 HTTP 源使用摄像头/麦克风（把该 HTTP 源视作安全上下文）
-app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', SECURE_ORIGIN);
-app.commandLine.appendSwitch('ignore-certificate-errors');
-// 允许在非安全上下文中使用 mediaDevices
-app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,HardwareMediaKeyHandling');
-
-// 单实例：只允许运行一个窗口
+// 单实例
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) { app.quit(); }
 
@@ -35,13 +44,19 @@ function createWindow() {
     icon: getIconPath('icon.png'),
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: false,
       webSecurity: false,
+      allowRunningInsecureContent: true,
+      autoplayPolicy: 'no-user-gesture-required',
+      images: true,
+      javascript: true,
+      webgl: true,
+      webaudio: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
-  // 菜单：刷新 / 返回首页 / 在浏览器打开 / 退出
+  // 菜单
   const template = [
     {
       label: '菜单',
@@ -50,13 +65,12 @@ function createWindow() {
         { label: '刷新', accelerator: 'F5', click: () => mainWindow && mainWindow.reload() },
         { type: 'separator' },
         { label: '在浏览器中打开', click: () => shell.openExternal(TARGET_URL) },
+        { label: '开发者工具', accelerator: 'F12', click: () => mainWindow && mainWindow.webContents.toggleDevTools() },
+        { type: 'separator' },
         { label: '退出', accelerator: 'Ctrl+Q', click: () => quitApp() },
       ],
     },
   ];
-  if (isDev) {
-    template[0].submenu.push({ label: '开发者工具', accelerator: 'F12', click: () => mainWindow && mainWindow.webContents.toggleDevTools() });
-  }
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 
   // 外部链接用系统浏览器打开
@@ -65,49 +79,38 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // ✅ 自动授予摄像头/麦克风权限
-  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    if (permission === 'media' || permission === 'videoCapture' || permission === 'audioCapture' ||
-        permission === 'camera' || permission === 'microphone' || permission === 'display-capture' ||
-        permission === 'mediaStream' || permission === 'geolocation' || permission === 'notifications') {
-      return callback(true);
-    }
-    callback(false);
+  // ========== 权限处理：全部自动授予 ==========
+  const ses = mainWindow.webContents.session;
+
+  // 权限请求处理器：所有权限自动同意
+  ses.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(true);
   });
 
-  // 新版 Electron 权限检查处理器
+  // 权限检查处理器
   try {
-    mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
-      return true;
-    });
+    ses.setPermissionCheckHandler(() => true);
   } catch (e) {}
 
-  // Electron 14+: 处理摄像头/麦克风设备授权（Windows）
-  mainWindow.webContents.session.setDevicePermissionHandler((details) => {
-    return true;
-  });
-
-  // 处理 select-bluetooth-device / usb 等扩展权限
+  // 设备权限处理器
   try {
-    mainWindow.webContents.session.on('select-usb-device', (event, details, callback) => {
-      if (details.deviceList && details.deviceList.length > 0) {
-        callback(details.deviceList[0].deviceId);
-      }
-    });
+    ses.setDevicePermissionHandler(() => true);
   } catch (e) {}
 
-  // 确保 navigator.mediaDevices 在 HTTP 源上可用
+  // 页面加载完成后：注入 JS 覆盖安全上下文标志
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.executeJavaScript(`
-      if (!window.isSecureContext) {
-        Object.defineProperty(window, 'isSecureContext', { value: true, writable: false, configurable: true });
-      }
+      try {
+        Object.defineProperty(window, 'isSecureContext', { value: true, writable: true, configurable: true });
+      } catch(e) {}
+      window.__ELECTRON_APP__ = true;
+      true;
     `).catch(() => {});
   });
 
   mainWindow.loadURL(TARGET_URL);
 
-  // ✅ 关闭按钮 → 最小化到托盘（不退出）
+  // 关闭按钮 → 最小化到托盘
   let willQuit = false;
   mainWindow.on('close', (e) => {
     if (!willQuit) {
@@ -116,21 +119,14 @@ function createWindow() {
     }
   });
   mainWindow.on('closed', () => { mainWindow = null; });
-
-  // 公开给托盘菜单用的退出函数
   mainWindow._quitApp = () => { willQuit = true; app.quit(); };
 }
 
 // ========== 创建系统托盘 ==========
 function createTray() {
   const iconPath = getIconPath('tray.png');
-  let image;
-  try {
-    image = nativeImage.createFromPath(iconPath);
-    if (image.isEmpty()) image = nativeImage.createEmpty();
-  } catch (e) {
-    image = nativeImage.createEmpty();
-  }
+  let image = nativeImage.createFromPath(iconPath);
+  if (image.isEmpty()) image = nativeImage.createEmpty();
 
   tray = new Tray(image);
   tray.setToolTip(APP_NAME);
@@ -139,12 +135,12 @@ function createTray() {
     { label: '打开 ' + APP_NAME, click: () => showMainWindow() },
     { label: '刷新', click: () => mainWindow && mainWindow.reload() },
     { type: 'separator' },
-    { label: '开机自启', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => toggleAutoStart(item.checked) },
+    { label: '开机自启', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => toggleAutoStart(item.checked) },
     { type: 'separator' },
     { label: '退出', click: () => quitApp() },
   ]);
   tray.setContextMenu(contextMenu);
-
   tray.on('click', () => {
     if (mainWindow && mainWindow.isVisible()) mainWindow.hide();
     else showMainWindow();
@@ -163,43 +159,28 @@ function quitApp() {
   else app.quit();
 }
 
-// ========== 开机自启开关 ==========
 function toggleAutoStart(enable) {
-  app.setLoginItemSettings({
-    openAtLogin: enable,
-    path: process.execPath,
-    args: isDev ? [] : ['--opened-as-hidden'],
-  });
+  app.setLoginItemSettings({ openAtLogin: enable, path: process.execPath });
 }
 
-// ========== 图标路径（开发/打包都兼容） ==========
 function getIconPath(filename) {
   const devPath = path.join(__dirname, 'assets', filename);
   if (fs.existsSync(devPath)) return devPath;
-  // 打包后 resources/app/assets/xxx
   const buildPath = path.join(process.resourcesPath, 'app', 'assets', filename);
   if (fs.existsSync(buildPath)) return buildPath;
-  return devPath; // 不存在则返回占位路径，Electron 会用默认图标
+  return devPath;
 }
 
 // ========== 应用启动 ==========
 app.whenReady().then(() => {
-  // 安装后默认开启「开机自启」（首次运行时开启）
   const settings = app.getLoginItemSettings();
   if (!settings.wasOpenedAtLogin && !settings.openAtLogin) {
-    // 默认开启（如果你不想默认开启，删除这两行即可）
     app.setLoginItemSettings({ openAtLogin: true, path: process.execPath });
   }
-
   createWindow();
   createTray();
-
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
 app.on('second-instance', () => showMainWindow());
-
-app.on('window-all-closed', () => {
-  // 不要在所有窗口关闭时退出 app —— 托盘图标仍在
-  if (process.platform === 'darwin') return;
-});
+app.on('window-all-closed', () => { if (process.platform === 'darwin') return; });
