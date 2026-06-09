@@ -11,23 +11,10 @@ const app = express();
 const PORT = 3000;
 
 // ---------- 实时视频流（纯内存，不保存任何文件）----------
-// { username: { frame: 'data:image/jpeg;base64,...', ts: 毫秒, ws: ws } }
+// { username: { frame: 'data:image/jpeg;base64,...', ts: 毫秒 } }
 const liveFrames = new Map();
 const studentConnections = new Map(); // username -> WebSocket
 const adminConnections = new Set();   // 管理员 WebSocket 集合
-
-// 每 500ms 向所有管理员推送一次当前所有学生的最新帧
-setInterval(() => {
-  const snapshot = [];
-  for (const [username, info] of liveFrames.entries()) {
-    snapshot.push({ username, frame: info.frame, ts: info.ts });
-  }
-  if (snapshot.length === 0) return;
-  const payload = JSON.stringify({ type: 'frames', data: snapshot });
-  for (const ws of adminConnections) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(payload);
-  }
-}, 500);
 
 // ---------- 数据库初始化 ----------
 const DATA_DIR = '/data';

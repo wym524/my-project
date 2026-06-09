@@ -80,19 +80,17 @@
 
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    let username = 'admin';
-    const m = document.cookie.match(/session_user=([^;]+)/);
-    if (m) username = decodeURIComponent(m[1]);
+    let username = localStorage.getItem('supervisor_username') || localStorage.getItem('username') || 'admin';
     const url = proto + '://' + location.host + '/?role=admin&u=' + encodeURIComponent(username);
     try { ws = new WebSocket(url); } catch (e) {
       setState('无法建立 WebSocket 连接', '#ef4444'); return;
     }
 
-    ws.onopen = function () { setState('✓ 已连接服务器，等待学生上线...', '#10b981'); render(); };
+    ws.onopen = function () { render(); setState('✓ 已连接服务器，等待学生上线...', '#10b981'); };
     ws.onclose = function () {
-      setState('连接已断开，正在重连...', '#f59e0b');
       frames.clear();
       render();
+      setState('连接已断开，正在重连...', '#f59e0b');
       setTimeout(connectWS, 2000);
     };
     ws.onerror = function () {
