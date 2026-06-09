@@ -1,24 +1,34 @@
 // Electron 主进程：把你服务器上的网站包装成 Windows 桌面 App
+// 关键点 1：--test-type 让 --unsafely-treat-insecure-origin-as-secure 真正生效
+// 关键点 2：before-input-event 监听 F12
 const { app, BrowserWindow, Menu, Tray, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// ========== 关键：Chromium 启动参数 ==========
-// 允许 HTTP 源被视为安全源（最重要！让 HTTP 页面能访问摄像头）
+// ========== Chromium 启动参数（必须在 app ready 之前设置）==========
 const APP_URL = 'http://124.223.86.48:3000';
-app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure',
-  APP_URL + ',http://127.0.0.1,http://localhost,http://0.0.0.0');
 
-// 禁用安全限制
+// 关键！--test-type 是让 unsafely-treat-insecure-origin-as-secure 生效的前置条件
+app.commandLine.appendSwitch('test-type');
+
+// 关键！让 HTTP 源被视作安全源（核心中的核心）
+app.commandLine.appendSwitch(
+  'unsafely-treat-insecure-origin-as-secure',
+  'http://124.223.86.48:3000,http://127.0.0.1,http://localhost'
+);
+
+// 禁用各种安全限制
 app.commandLine.appendSwitch('disable-web-security');
 app.commandLine.appendSwitch('disable-site-isolation-trials');
 app.commandLine.appendSwitch('allow-running-insecure-content');
 app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('no-user-gesture-required');
+app.commandLine.appendSwitch('no-sandbox');
 
 // 媒体流相关
 app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
-app.commandLine.appendSwitch('no-user-gesture-required');
-app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,AutoplayPolicy');
+app.commandLine.appendSwitch('enable-media-stream');
+app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,HardwareMediaKeyHandling,IsolateOrigins,site-per-process,AutoplayPolicy,MediaStreamWebCodecsVideoDecoder');
 
 // ========== 基础配置 ==========
 const TARGET_URL = APP_URL + '/';
@@ -79,25 +89,13 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // ========== 权限处理：全部自动授予 ==========
+  // ========== 权限处理 ==========
   const ses = mainWindow.webContents.session;
+  ses.setPermissionRequestHandler((webContents, permission, callback) => { callback(true); });
+  try { ses.setPermissionCheckHandler(() => true); } catch (e) {}
+  try { ses.setDevicePermissionHandler(() => true); } catch (e) {}
 
-  // 权限请求处理器：所有权限自动同意
-  ses.setPermissionRequestHandler((webContents, permission, callback) => {
-    callback(true);
-  });
-
-  // 权限检查处理器
-  try {
-    ses.setPermissionCheckHandler(() => true);
-  } catch (e) {}
-
-  // 设备权限处理器
-  try {
-    ses.setDevicePermissionHandler(() => true);
-  } catch (e) {}
-
-  // 页面加载完成后：注入 JS 覆盖安全上下文标志
+  // 页面加载完成后注入调试信息
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.executeJavaScript(`
       try {
@@ -109,6 +107,22 @@ function createWindow() {
   });
 
   mainWindow.loadURL(TARGET_URL);
+
+  // F12 打开开发者工具（before-input-event 最可靠）
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' && !input.alt && !input.control && !input.meta) {
+      event.preventDefault();
+      mainWindow.webContents.toggleDevTools();
+    }
+    if ((input.control || input.meta) && input.shift && (input.key === 'I' || input.key === 'i')) {
+      event.preventDefault();
+      mainWindow.webContents.toggleDevTools();
+    }
+    if (input.key === 'F5' && !input.alt && !input.control && !input.meta) {
+      event.preventDefault();
+      mainWindow.reload();
+    }
+  });
 
   // 关闭按钮 → 最小化到托盘
   let willQuit = false;
