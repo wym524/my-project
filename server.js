@@ -1242,17 +1242,42 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ---------- AI 调用通用工具 ----------
-const callAI = (messages, config) => {
+const callAI = (messages, config, modelOverride = null) => {
   return new Promise((resolve, reject) => {
     if (!config || !config.api_key) {
       return resolve({ success: false, content: 'AI 未配置，请先在管理员面板中设置 API Key' });
     }
     const provider = config.provider || 'qwen';
-    const baseUrl = config.base_url || (provider === 'qwen' ? 'dashscope.aliyuncs.com' : provider === 'zhipu' ? 'open.bigmodel.cn' : 'api.openai.com');
-    const apiPath = provider === 'qwen' ? '/compatible-mode/v1/chat/completions' : provider === 'zhipu' ? '/api/paas/v4/chat/completions' : '/v1/chat/completions';
-    const modelName = provider === 'qwen' ? 'qwen-turbo' : provider === 'zhipu' ? 'glm-4' : 'gpt-3.5-turbo';
-    const hostname = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    const path = baseUrl.includes('compatible-mode') ? apiPath : (baseUrl.includes('/') ? (baseUrl.replace(/^https?:\/\/[^\/]+/, '') + '/chat/completions').replace(/\/+/, '/') : apiPath);
+
+    // 解析 base_url，支持完整URL格式
+    let baseUrl = config.base_url || '';
+    if (!baseUrl) {
+      baseUrl = provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' :
+                provider === 'zhipu' ? 'https://open.bigmodel.cn/api/paas/v4' :
+                'https://api.openai.com/v1';
+    }
+
+    // 从完整URL中提取hostname和path
+    let hostname, basePath;
+    const urlMatch = baseUrl.match(/^https?:\/\/([^\/]+)(\/.*)?$/);
+    if (urlMatch) {
+      hostname = urlMatch[1];
+      basePath = urlMatch[2] || '';
+    } else {
+      // 兼容旧格式（不带https://）
+      hostname = baseUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      basePath = baseUrl.includes('/') ? baseUrl.replace(/^https?:\/\/[^\/]+/, '') : '';
+    }
+
+    // 构建完整API路径
+    const apiPath = basePath.endsWith('/chat/completions') ? basePath :
+                    basePath + '/chat/completions';
+
+    // 模型名称：支持自定义模型
+    const modelName = modelOverride || config.model ||
+                      (provider === 'qwen' ? 'qwen-plus' :
+                       provider === 'zhipu' ? 'glm-4' : 'gpt-3.5-turbo');
+
     const postData = JSON.stringify({
       model: modelName,
       messages: messages,
@@ -1260,17 +1285,19 @@ const callAI = (messages, config) => {
     });
     const options = {
       hostname: hostname,
-      path: path,
+      path: apiPath.replace(/\/+/g, '/'),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + config.api_key
       }
     };
+    console.log('[AI] Calling:', hostname + apiPath, 'model:', modelName);
     const req = https.request(options, (resp) => {
       let data = '';
       resp.on('data', (chunk) => { data += chunk; });
       resp.on('end', () => {
+        console.log('[AI] Response status:', resp.statusCode);
         try {
           const result = JSON.parse(data);
           if (result.choices && result.choices[0] && result.choices[0].message) {
@@ -1295,11 +1322,24 @@ const callAI = (messages, config) => {
 app.post('/api/admin/ai-config', (req, res) => {
   const session = requireAdmin(req, res);
   if (!session) return;
-  const { provider, api_key, base_url } = req.body || {};
+  const { provider, api_key, base_url, model } = req.body || {};
   if (!api_key) return res.status(400).json({ success: false, message: 'API Key 必填' });
   db.prepare('DELETE FROM ai_configs').run();
   const info = db.prepare('INSERT INTO ai_configs (provider, api_key, base_url) VALUES (?, ?, ?)').run(provider || 'qwen', api_key, base_url || null);
   return res.json({ success: true, id: info.lastInsertRowid });
+});
+
+// 管理员测试AI连接
+app.post('/api/admin/ai-test', async (req, res) => {
+  const session = requireAdmin(req, res);
+  if (!session) return;
+  const config = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  if (!config) return res.json({ success: false, message: '请先配置AI' });
+  const result = await callAI([{ role: 'user', content: '你好，请回复"测试成功"' }], config);
+  if (result.success) {
+    return res.json({ success: true, message: 'AI连接测试成功', response: result.content });
+  }
+  return res.json({ success: false, message: result.content });
 });
 
 app.get('/api/admin/ai-config', (req, res) => {
