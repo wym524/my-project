@@ -109,7 +109,7 @@
     stopCapture();
 
     const constraints = {
-      video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+      video: { width: { ideal: 160 }, height: { ideal: 120 }, facingMode: 'user' },
       audio: false
     };
 
@@ -132,8 +132,8 @@
 
       // 创建 canvas
       canvasEl = document.createElement('canvas');
-      canvasEl.width = 320;
-      canvasEl.height = 240;
+      canvasEl.width = 160;
+      canvasEl.height = 120;
       canvasEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;visibility:hidden;';
       document.body.appendChild(canvasEl);
 
@@ -192,7 +192,7 @@
     try {
       const ctx = canvasEl.getContext('2d');
       ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
-      const dataUrl = canvasEl.toDataURL('image/jpeg', 0.45);
+      const dataUrl = canvasEl.toDataURL('image/jpeg', 0.6);
       ws.send(JSON.stringify({ type: 'frame', frame: dataUrl }));
     } catch (e) {}
   }
