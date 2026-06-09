@@ -167,6 +167,7 @@ db.exec(`
     provider TEXT NOT NULL DEFAULT 'qwen',
     api_key TEXT NOT NULL,
     base_url TEXT,
+    model TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
@@ -1325,7 +1326,7 @@ app.post('/api/admin/ai-config', (req, res) => {
   const { provider, api_key, base_url, model } = req.body || {};
   if (!api_key) return res.status(400).json({ success: false, message: 'API Key 必填' });
   db.prepare('DELETE FROM ai_configs').run();
-  const info = db.prepare('INSERT INTO ai_configs (provider, api_key, base_url) VALUES (?, ?, ?)').run(provider || 'qwen', api_key, base_url || null);
+  const info = db.prepare('INSERT INTO ai_configs (provider, api_key, base_url, model) VALUES (?, ?, ?, ?)').run(provider || 'qwen', api_key, base_url || null, model || null);
   return res.json({ success: true, id: info.lastInsertRowid });
 });
 
@@ -1333,7 +1334,7 @@ app.post('/api/admin/ai-config', (req, res) => {
 app.post('/api/admin/ai-test', async (req, res) => {
   const session = requireAdmin(req, res);
   if (!session) return;
-  const config = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const config = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   if (!config) return res.json({ success: false, message: '请先配置AI' });
   const result = await callAI([{ role: 'user', content: '你好，请回复"测试成功"' }], config);
   if (result.success) {
@@ -1518,7 +1519,7 @@ app.post('/api/ai/chat', async (req, res) => {
   if (!question || !String(question).trim()) {
     return res.status(400).json({ success: false, message: '问题不能为空' });
   }
-  const config = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const config = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   const systemContent = '你是一位专业的雅思英语学习助手，帮助用户提高英语水平、解答雅思考试相关问题。请用中文和英文结合的方式回答问题，给出实用建议和例句。';
   const messages = [
     { role: 'system', content: systemContent },
@@ -1540,7 +1541,7 @@ app.post('/api/ai/speaking/evaluate', async (req, res) => {
   if (!answer || !String(answer).trim()) {
     return res.status(400).json({ success: false, message: '请提供口语回答内容' });
   }
-  const config = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const config = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   const systemContent = '你是一位资深的雅思口语考官，请根据雅思口语评分标准（流利度与连贯性、词汇多样性、语法多样性与准确性、发音）对学生的回答进行评分和评估。请用中文回答。';
   const userContent = `话题: ${topic || '通用话题'}\n\n学生回答: ${String(answer)}\n\n请按照以下格式反馈：\n1. 评分（0-9分制）及总体评价\n2. 流利度与连贯性分析\n3. 词汇使用建议\n4. 语法问题与改进\n5. 发音注意事项（如果有文本线索）\n6. 改进后的示例回答`;
   const messages = [
@@ -1563,7 +1564,7 @@ app.post('/api/ai/writing/evaluate', async (req, res) => {
   if (!answer || !String(answer).trim()) {
     return res.status(400).json({ success: false, message: '请提供作文内容' });
   }
-  const config = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const config = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   const systemContent = '你是一位资深的雅思写作考官，请根据雅思写作评分标准（任务完成度、连贯与衔接、词汇多样性、语法多样性与准确性）对学生的作文进行评分和评估。请用中文回答。';
   const userContent = `作文题目: ${topic || '通用题目'}\n\n学生作文: ${String(answer)}\n\n请按照以下格式反馈：\n1. 总体评分（0-9分制）和简要评价\n2. 任务完成度分析\n3. 连贯性与衔接词使用\n4. 词汇使用分析与改进建议\n5. 语法问题与修正示例\n6. 改进建议与高分表达推荐`;
   const messages = [
@@ -1640,7 +1641,7 @@ app.get('/api/stats/chart', (req, res) => {
 app.post('/api/ai/generate-words', async (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const cfg = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
   const { category = '高频', count = 10 } = req.body || {};
   const prompt = `请生成${count}个雅思${category}类单词，严格返回 JSON 数组，不要任何解释文字。格式：[{"word":"...","meaning":"中文释义","example":"英文例句"}]`;
@@ -1664,7 +1665,7 @@ app.post('/api/ai/generate-words', async (req, res) => {
 app.post('/api/ai/generate-speaking', async (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const cfg = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
   const { part = 'Part 2', count = 3 } = req.body || {};
   const prompt = `请生成${count}个雅思口语${part}话题卡，严格返回 JSON 数组，不要任何解释。格式：[{"topic":"话题标题","question":"问题描述","hints":"提示要点用换行分隔","reference_answer":"参考答案"}]`;
@@ -1688,7 +1689,7 @@ app.post('/api/ai/generate-speaking', async (req, res) => {
 app.post('/api/ai/generate-writing', async (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const cfg = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
   const { type = '大作文', count = 3 } = req.body || {};
   const prompt = `请生成${count}道雅思${type}题目，严格返回 JSON 数组，不要任何解释。大作文格式：[{"title":"题目","question":"完整题目描述","hints":"写作思路用换行分隔"}]`;
@@ -1712,7 +1713,7 @@ app.post('/api/ai/generate-writing', async (req, res) => {
 app.post('/api/ai/generate-questions', async (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+  const cfg = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
   const { subject = '阅读', count = 5 } = req.body || {};
   const prompt = `请生成${count}道雅思${subject}选择题，严格返回 JSON 数组，不要任何解释。格式：[{"type":"${subject}","question":"题目","options":["A选项","B选项","C选项","D选项"],"answer":"正确答案字母如A","explanation":"解析"}]`;
@@ -1831,7 +1832,7 @@ app.post('/api/admin/quizzes/generate', async (req, res) => {
 
   // 模式 3：AI 自动出题
   if (mode === 'ai') {
-    const cfg = db.prepare('SELECT provider, api_key, base_url FROM ai_configs ORDER BY id DESC LIMIT 1').get();
+    const cfg = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
     if (cfg && cfg.api_key) {
       const knownList = isAllUsers ? [] : db.prepare(`SELECT w.word, w.meaning FROM user_words uw JOIN words w ON w.id = uw.word_id WHERE uw.username = ? AND uw.known = 1 ORDER BY uw.reviewed_at DESC LIMIT 15`).all(username);
       const displayName = isAllUsers ? '所有学生' : username;
