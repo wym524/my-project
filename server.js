@@ -1243,7 +1243,17 @@ app.get('/api/stats', (req, res) => {
 });
 
 // ---------- AI 调用通用工具 ----------
-const callAI = (messages, config, modelOverride = null) => {
+// ---------- AI 调用通用工具（支持两种调用方式：
+// 1. callAI(messagesArray, config)  或
+// 2. callAI(config, promptString)
+const callAI = (arg1, arg2, modelOverride = null) => {
+  // 智能识别参数类型
+  let messages = typeof arg1 === 'string' ? [{ role: 'user', content: arg1 }] :
+              Array.isArray(arg1) ? arg1 :
+              (typeof arg2 === 'string' ? [{ role: 'user', content: arg2 }] : [];
+  const config = (arg1 && typeof arg1 === 'object' && !Array.isArray(arg1) && arg1.api_key ? arg1 :
+                 (arg2 && typeof arg2 === 'object' && arg2.api_key ? arg2 : null);
+  const promptStr = typeof arg1 === 'string' ? arg1 : (typeof arg2 === 'string' ? arg2 : null);
   return new Promise((resolve, reject) => {
     if (!config || !config.api_key) {
       return resolve({ success: false, content: 'AI 未配置，请先在管理员面板中设置 API Key' });
@@ -1260,7 +1270,7 @@ const callAI = (messages, config, modelOverride = null) => {
 
     // 从完整URL中提取hostname和path
     let hostname, basePath;
-    const urlMatch = baseUrl.match(/^https?:\/\/([^\/]+)(\/.*)?$/);
+    const urlMatch = baseUrl.match(/^https?:\/\/([^\/]+)(\/.*)?$/;
     if (urlMatch) {
       hostname = urlMatch[1];
       basePath = urlMatch[2] || '';
@@ -1293,7 +1303,7 @@ const callAI = (messages, config, modelOverride = null) => {
         'Authorization': 'Bearer ' + config.api_key
       }
     };
-    console.log('[AI] Calling:', hostname + apiPath, 'model:', modelName);
+    console.log('[AI] Calling:', hostname + apiPath, 'model:', modelName, 'prompt_len:', (promptStr || 'messages方式');
     const req = https.request(options, (resp) => {
       let data = '';
       resp.on('data', (chunk) => { data += chunk; });
@@ -1716,7 +1726,7 @@ app.post('/api/ai/generate-questions', async (req, res) => {
   const cfg = db.prepare('SELECT provider, api_key, base_url, model FROM ai_configs ORDER BY id DESC LIMIT 1').get();
   if (!cfg || !cfg.api_key) return res.status(400).json({ success: false, message: '请先配置 AI' });
   const { subject = '阅读', count = 5 } = req.body || {};
-  const prompt = `请生成${count}道雅思${subject}选择题，严格返回 JSON 数组，不要任何解释。格式：[{"type":"${subject}","question":"题目","options":["A选项","B选项","C选项","D选项"],"answer":"正确答案字母如A","explanation":"解析"}]`;
+  const prompt = `请生成${count}道雅思${subject}选择题，严格返回 JSON 数组，不要任何解释。格式：[{"prompt":"题目内容","options":["选项A","选项B","选项C","选项D"],"answer":"正确答案索引数字0-3","explanation":"答案解析","difficulty":2}]。answer必须是0到3的数字，表示options数组中正确选项的索引。`;
   const result = await callAI(cfg, prompt);
   if (!result.success) return res.status(500).json({ success: false, message: result.content });
   try {
@@ -1725,8 +1735,21 @@ app.post('/api/ai/generate-questions', async (req, res) => {
       const m = result.content.match(/\[[\s\S]*\]/);
       if (m) arr = JSON.parse(m[0]);
     }
-    const stmt = db.prepare('INSERT INTO questions (type, question, options, answer, explanation) VALUES (?, ?, ?, ?, ?)');
-    const tx = db.transaction((items) => { for (const q of items) if (q.question && q.answer) stmt.run(subject, q.question, JSON.stringify(q.options || []), q.answer, q.explanation || ''); });
+    const stmt = db.prepare('INSERT INTO questions (module, type, prompt, options, answer, explanation, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const tx = db.transaction((items) => {
+      for (const q of items) {
+        if (q.prompt && q.options && Array.isArray(q.options)) {
+          let answer = q.answer;
+          // 兼容：AI可能返回"A"或"0"等不同格式
+          if (typeof answer === 'string') {
+            if (/^[0-9]$/.test(answer)) answer = parseInt(answer);
+            else if (/^[A-Da-d]$/.test(answer)) answer = answer.toUpperCase().charCodeAt(0) - 65;
+          }
+          if (typeof answer !== 'number' || answer < 0 || answer > 3) answer = 0;
+          stmt.run(subject, 'choice', q.prompt, JSON.stringify(q.options), String(answer), q.explanation || '', typeof q.difficulty === 'number' ? q.difficulty : 2);
+        }
+      }
+    });
     tx(arr);
     return res.json({ success: true, count: arr.length, items: arr.slice(0, 3) });
   } catch (e) {
