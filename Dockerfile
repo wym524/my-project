@@ -1,9 +1,9 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
 
 COPY package.json ./
-RUN npm install --production
+RUN apt-get update && apt-get install -y python3 make g++ --no-install-recommends && npm install --production && apt-get remove -y python3 make g++ && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 

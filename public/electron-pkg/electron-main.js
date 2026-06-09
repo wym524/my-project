@@ -116,11 +116,6 @@ function createWindow() {
       window.__ELECTRON_APP__ = true;
       true;
     `).catch(() => {});
-
-    // 自动打开开发者工具（无需按 F12）
-    try {
-      mainWindow.webContents.openDevTools({ mode: 'detach' });
-    } catch (e) {}
   });
 
   // 加载页面
