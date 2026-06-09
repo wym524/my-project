@@ -148,7 +148,7 @@
             p.then(function () {
               console.log('[监督模式] ✓ 视频播放成功，开始推送帧');
               if (captureTimer) clearInterval(captureTimer);
-              captureTimer = setInterval(captureAndSend, 300);
+              captureTimer = setInterval(captureAndSend, 150);
             }).catch(function (err) {
               console.warn('[监督模式] 播放失败:', err && err.name, '，重试', playAttempts);
               if (playAttempts < 10) setTimeout(tryPlay, 500);
@@ -156,7 +156,7 @@
           } else {
             console.log('[监督模式] ✓ 同步播放成功，开始推送帧');
             if (captureTimer) clearInterval(captureTimer);
-            captureTimer = setInterval(captureAndSend, 300);
+            captureTimer = setInterval(captureAndSend, 150);
           }
         } catch (e) {
           console.warn('[监督模式] play异常:', e);
@@ -192,7 +192,7 @@
     try {
       const ctx = canvasEl.getContext('2d');
       ctx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
-      const dataUrl = canvasEl.toDataURL('image/jpeg', 0.5);
+      const dataUrl = canvasEl.toDataURL('image/jpeg', 0.45);
       ws.send(JSON.stringify({ type: 'frame', frame: dataUrl }));
     } catch (e) {}
   }
