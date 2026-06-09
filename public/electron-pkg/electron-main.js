@@ -1,13 +1,20 @@
 // Electron 主进程：把你服务器上的网站包装成 Windows 桌面 App
 // 功能：开机自启 + 关闭最小化到托盘 + 摄像头权限自动授予
-const { app, BrowserWindow, Menu, Tray, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, nativeImage, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 // ========== 基础配置 ==========
 const TARGET_URL = 'http://124.223.86.48:3000/';
+const SECURE_ORIGIN = 'http://124.223.86.48:3000';
 const isDev = !app.isPackaged;
 const APP_NAME = '雅思学习空间';
+
+// 允许 HTTP 源使用摄像头/麦克风（把该 HTTP 源视作安全上下文）
+app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', SECURE_ORIGIN);
+app.commandLine.appendSwitch('ignore-certificate-errors');
+// 允许在非安全上下文中使用 mediaDevices
+app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,HardwareMediaKeyHandling');
 
 // 单实例：只允许运行一个窗口
 const gotTheLock = app.requestSingleInstanceLock();
@@ -59,22 +66,45 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // ✅ 自动授予摄像头/麦克风权限（应用内）
+  // ✅ 自动授予摄像头/麦克风权限
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-    // media: videoCamera / audioCapture —— 全部允许
-    if (permission === 'media' || permission === 'videoCapture' || permission === 'audioCapture' || permission === 'camera' || permission === 'microphone') {
+    if (permission === 'media' || permission === 'videoCapture' || permission === 'audioCapture' ||
+        permission === 'camera' || permission === 'microphone' || permission === 'display-capture' ||
+        permission === 'mediaStream' || permission === 'geolocation' || permission === 'notifications') {
       return callback(true);
     }
     callback(false);
   });
 
-  // 兼容新版 Electron（不同版本字段名不同）
+  // 新版 Electron 权限检查处理器
   try {
     mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
-      if (['media', 'videoCapture', 'audioCapture', 'camera', 'microphone'].includes(permission)) return true;
       return true;
     });
   } catch (e) {}
+
+  // Electron 14+: 处理摄像头/麦克风设备授权（Windows）
+  mainWindow.webContents.session.setDevicePermissionHandler((details) => {
+    return true;
+  });
+
+  // 处理 select-bluetooth-device / usb 等扩展权限
+  try {
+    mainWindow.webContents.session.on('select-usb-device', (event, details, callback) => {
+      if (details.deviceList && details.deviceList.length > 0) {
+        callback(details.deviceList[0].deviceId);
+      }
+    });
+  } catch (e) {}
+
+  // 确保 navigator.mediaDevices 在 HTTP 源上可用
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.executeJavaScript(`
+      if (!window.isSecureContext) {
+        Object.defineProperty(window, 'isSecureContext', { value: true, writable: false, configurable: true });
+      }
+    `).catch(() => {});
+  });
 
   mainWindow.loadURL(TARGET_URL);
 
