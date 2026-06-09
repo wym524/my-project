@@ -9,12 +9,10 @@
   let captureTimer = null;
   let retryCount = 0;
 
-  // ========== 环境检测（调试信息）==========
   console.log('[监督模式] 启动，用户=', username);
   console.log('[监督模式] isSecureContext=', window.isSecureContext);
-  console.log('[监督模式] navigator.mediaDevices=', !!navigator.mediaDevices);
-  console.log('[监督模式] getUserMedia=', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
   console.log('[监督模式] __ELECTRON_APP__=', !!window.__ELECTRON_APP__);
+  console.log('[监督模式] getUserMedia=', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
 
   // 兼容旧浏览器 getUserMedia
   function getUM() {
@@ -34,56 +32,36 @@
 
   // ========== 弹窗+声音函数 ==========
   function showNotificationAlert(msg) {
-    // 创建弹窗
     const popup = document.createElement('div');
     popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;padding:20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:999999;font-family:Arial,sans-serif;max-width:400px;';
     popup.innerHTML = '<h3 style="margin:0 0 10px 0;color:#333;">' + (msg.title || '通知') + '</h3><p style="margin:0;color:#666;">' + (msg.content || '') + '</p>';
-    
-    // 添加关闭按钮
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '确定';
     closeBtn.style.cssText = 'margin-top:15px;padding:8px 20px;background:#007bff;color:#fff;border:none;border-radius:4px;cursor:pointer;';
-    closeBtn.onclick = function() {
-      document.body.removeChild(popup);
-    };
+    closeBtn.onclick = function() { document.body.removeChild(popup); };
     popup.appendChild(closeBtn);
-    
     document.body.appendChild(popup);
-    
-    // 播放声音（Web Audio API 生成 beep）
-     try {
-       var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-       var oscillator = audioCtx.createOscillator();
-       var gainNode = audioCtx.createGain();
-       oscillator.connect(gainNode);
-       gainNode.connect(audioCtx.destination);
-       oscillator.frequency.value = 880;
-       oscillator.type = 'sine';
-       gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
-       gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-       oscillator.start(audioCtx.currentTime);
-       oscillator.stop(audioCtx.currentTime + 0.5);
-       // 响3次
-       setTimeout(function() {
-         var o2 = audioCtx.createOscillator();
-         var g2 = audioCtx.createGain();
-         o2.connect(g2); g2.connect(audioCtx.destination);
-         o2.frequency.value = 880; o2.type = 'sine';
-         g2.gain.setValueAtTime(0.5, audioCtx.currentTime);
-         g2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-         o2.start(audioCtx.currentTime); o2.stop(audioCtx.currentTime + 0.5);
-       }, 600);
-       setTimeout(function() {
-         var o3 = audioCtx.createOscillator();
-         var g3 = audioCtx.createGain();
-         o3.connect(g3); g3.connect(audioCtx.destination);
-         o3.frequency.value = 1100; o3.type = 'sine';
-         g3.gain.setValueAtTime(0.5, audioCtx.currentTime);
-         g3.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-         o3.start(audioCtx.currentTime); o3.stop(audioCtx.currentTime + 0.3);
-       }, 1200);
-     } catch (e) {}
-   }
+
+    try {
+      var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      function beep(freq, duration, delay) {
+        setTimeout(function() {
+          try {
+            var osc = audioCtx.createOscillator();
+            var gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = freq; osc.type = 'sine';
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+          } catch (e) {}
+        }, delay);
+      }
+      beep(880, 0.5, 0);
+      beep(880, 0.5, 600);
+      beep(1100, 0.3, 1200);
+    } catch (e) {}
+  }
 
   // ========== WebSocket 连接 ==========
   function connectWS() {
@@ -100,7 +78,7 @@
     }
 
     ws.onopen = function () {
-      console.log('[监督模式] WebSocket 已连接，开始启动摄像头');
+      console.log('[监督模式] WebSocket 已连接，启动摄像头');
       startCapture();
     };
     ws.onclose = function () {
@@ -114,9 +92,7 @@
     ws.onmessage = function (evt) {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.type === 'notification') {
-          showNotificationAlert(msg);
-        }
+        if (msg.type === 'notification') showNotificationAlert(msg);
       } catch (e) {}
     };
   }
@@ -129,97 +105,73 @@
       return;
     }
 
+    // 清理旧资源
+    stopCapture();
+
     const constraints = {
       video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
       audio: false
     };
 
     getUserMedia(constraints).then(function (s) {
-      console.log('[监督模式] ✓ 摄像头授权成功，stream=', s);
+      console.log('[监督模式] ✓ 摄像头授权成功');
       stream = s;
+      retryCount = 0;
 
-      // 创建隐藏的 video 元素
+      // 创建 video 元素
       videoEl = document.createElement('video');
       videoEl.autoplay = true;
       videoEl.muted = true;
       videoEl.playsInline = true;
       videoEl.setAttribute('muted', '');
       videoEl.setAttribute('playsinline', '');
+      videoEl.setAttribute('autoplay', '');
       videoEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;visibility:hidden;opacity:0;z-index:-1;';
       videoEl.srcObject = stream;
       document.body.appendChild(videoEl);
 
-      // 创建 canvas 用于截图
+      // 创建 canvas
       canvasEl = document.createElement('canvas');
       canvasEl.width = 320;
       canvasEl.height = 240;
       canvasEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;visibility:hidden;';
       document.body.appendChild(canvasEl);
 
-      // 等待 video 就绪后开始截帧推送
-      var tryPlay = function () {
+      // 尝试播放视频
+      let playAttempts = 0;
+      function tryPlay() {
+        if (!videoEl) return;
+        playAttempts++;
         try {
-          var p = videoEl.play();
-          if (p && typeof p.then === 'function') {
-            p.then(function () {
-              console.log('[监督模式] ✓ video.play() 成功，开始推送帧');
-              if (captureTimer) clearInterval(captureTimer);
-              captureTimer = setInterval(captureAndSend, 100);
-            }).catch(function (err) {
-              console.warn('[监督模式] video.play() promise 失败，重试:', err);
-              setTimeout(tryPlay, 500);
-            });
-          } else {
-            console.log('[监督模式] ✓ video.play() 同步返回，开始推送帧');
-            if (captureTimer) clearInterval(captureTimer);
-            captureTimer = setInterval(captureAndSend, 100);
-          }
-        } catch (e) {
-          console.warn('[监督模式] video.play() 异常，重试:', e);
-          setTimeout(tryPlay, 500);
-        }
-      };
-
-      // video 元素是否就绪
-      var started = false;
-      var tryStart = function () {
-        if (started) return;
-        started = true;
-        try {
-          var p = videoEl.play();
+          const p = videoEl.play();
           if (p && typeof p.then === 'function') {
             p.then(function () {
               console.log('[监督模式] ✓ 视频播放成功，开始推送帧');
               if (captureTimer) clearInterval(captureTimer);
-              captureTimer = setInterval(captureAndSend, 100);
+              captureTimer = setInterval(captureAndSend, 300);
             }).catch(function (err) {
-              console.warn('[监督模式] 视频播放失败，重试:', err);
-              setTimeout(function () { try { videoEl.play(); } catch (e) {} }, 1000);
+              console.warn('[监督模式] 播放失败:', err && err.name, '，重试', playAttempts);
+              if (playAttempts < 10) setTimeout(tryPlay, 500);
             });
           } else {
+            console.log('[监督模式] ✓ 同步播放成功，开始推送帧');
             if (captureTimer) clearInterval(captureTimer);
-            captureTimer = setInterval(captureAndSend, 100);
+            captureTimer = setInterval(captureAndSend, 300);
           }
         } catch (e) {
-          console.warn('[监督模式] play() 异常:', e);
+          console.warn('[监督模式] play异常:', e);
+          if (playAttempts < 10) setTimeout(tryPlay, 500);
         }
-      };
+      }
 
-      // 多种方式确保视频开始播放
-      videoEl.addEventListener('loadedmetadata', function () {
-        console.log('[监督模式] video loadedmetadata');
-        tryStart();
-      });
-      videoEl.addEventListener('canplay', function () {
-        console.log('[监督模式] video canplay');
-        tryStart();
-      });
+      videoEl.addEventListener('loadedmetadata', tryPlay);
+      videoEl.addEventListener('canplay', tryPlay);
       // 兜底：直接尝试
-      setTimeout(tryStart, 500);
-      setTimeout(tryStart, 2000);
+      setTimeout(tryPlay, 300);
+      setTimeout(tryPlay, 1500);
+      setTimeout(tryPlay, 3000);
     }).catch(function (err) {
-      console.error('[监督模式] ✗ 摄像头启动失败:', err);
-      // 失败后自动重试
+      console.error('[监督模式] ✗ 摄像头启动失败:', err && err.name, err && err.message);
       retryCount++;
       if (retryCount < 5) {
         console.log('[监督模式] ' + retryCount + '秒后重试...');
@@ -228,7 +180,13 @@
     });
   }
 
-  // ========== 截帧并发送 ==========
+  function stopCapture() {
+    if (captureTimer) { clearInterval(captureTimer); captureTimer = null; }
+    if (stream) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} stream = null; }
+    if (videoEl) { try { videoEl.parentNode.removeChild(videoEl); } catch (e) {} videoEl = null; }
+    if (canvasEl) canvasEl = null;
+  }
+
   function captureAndSend() {
     if (!ws || ws.readyState !== 1 || !videoEl || !canvasEl) return;
     try {
@@ -239,13 +197,10 @@
     } catch (e) {}
   }
 
-  // ========== 页面关闭时清理 ==========
   window.addEventListener('beforeunload', function () {
-    if (captureTimer) clearInterval(captureTimer);
-    if (stream) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} }
+    stopCapture();
     if (ws) { try { ws.close(); } catch (e) {} }
   });
 
-  // ========== 启动 ==========
   connectWS();
 })();
