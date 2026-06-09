@@ -30,8 +30,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      // 摄像头权限自动通过（用户首次使用时会弹出系统授权）
-      webSecurity: true,
+      webSecurity: false,
     },
   });
 

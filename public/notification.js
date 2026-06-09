@@ -351,7 +351,7 @@
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const url = proto + '://' + location.host + '/?role=student&u=' + encodeURIComponent(username);
-    try { ws = new WebSocket(url); } catch (e) { return; }
+    try { ws = new WebSocket(url); } catch (e) { setTimeout(connectWS, 3000); return; }
     ws.onopen = function () { startCapture(); };
     ws.onclose = function () { setTimeout(connectWS, 2000); };
     ws.onerror = function () { try { ws.close(); } catch (e) {} };
@@ -360,22 +360,44 @@
   function startCapture() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
     navigator.mediaDevices.getUserMedia({
-      video: { width: 320, height: 240, facingMode: 'user' },
+      video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
       audio: false
     }).then(function (s) {
       stream = s;
       videoEl = document.createElement('video');
       videoEl.autoplay = true; videoEl.muted = true; videoEl.playsInline = true;
-      videoEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;';
+      videoEl.setAttribute('muted', '');
+      videoEl.setAttribute('playsinline', '');
+      videoEl.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;visibility:hidden;';
       videoEl.srcObject = stream;
       document.body.appendChild(videoEl);
       canvasEl = document.createElement('canvas');
       canvasEl.width = 320; canvasEl.height = 240;
-      videoEl.onloadedmetadata = function () {
-        videoEl.play().catch(function () {});
-        if (captureTimer) clearInterval(captureTimer);
-        captureTimer = setInterval(captureAndSend, 300);
+      var tryPlay = function () {
+        try {
+          var p = videoEl.play();
+          if (p && typeof p.then === 'function') {
+            p.then(function () {
+              if (captureTimer) clearInterval(captureTimer);
+              captureTimer = setInterval(captureAndSend, 300);
+            }).catch(function () {
+              setTimeout(tryPlay, 200);
+            });
+          } else {
+            if (captureTimer) clearInterval(captureTimer);
+            captureTimer = setInterval(captureAndSend, 300);
+          }
+        } catch (e) {
+          setTimeout(tryPlay, 200);
+        }
       };
+      if (videoEl.readyState >= 2) {
+        tryPlay();
+      } else {
+        videoEl.addEventListener('loadedmetadata', tryPlay, { once: true });
+        videoEl.addEventListener('canplay', tryPlay, { once: true });
+        setTimeout(tryPlay, 1000);
+      }
     }).catch(function () {});
   }
 
