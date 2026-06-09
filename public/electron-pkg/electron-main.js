@@ -1,24 +1,29 @@
 // Electron 主进程：把你服务器上的网站包装成 Windows 桌面 App
+// 关键点：让远程 HTTP 页面能访问摄像头
 const { app, BrowserWindow, Menu, Tray, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// ========== 关键：Chromium 启动参数 ==========
-// 允许 HTTP 源被视为安全源（最重要！让 HTTP 页面能访问摄像头）
+// ========== Chromium 启动参数（必须在 app ready 之前设置）==========
 const APP_URL = 'http://124.223.86.48:3000';
-app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure',
-  APP_URL + ',http://127.0.0.1,http://localhost,http://0.0.0.0');
 
-// 禁用安全限制
+// 关键1：让 HTTP 源被视作安全源（核心中的核心）
+app.commandLine.appendSwitch(
+  'unsafely-treat-insecure-origin-as-secure',
+  'http://124.223.86.48:3000,http://127.0.0.1,http://localhost'
+);
+
+// 关键2：禁用各种安全特性（逐步兜底）
 app.commandLine.appendSwitch('disable-web-security');
 app.commandLine.appendSwitch('disable-site-isolation-trials');
 app.commandLine.appendSwitch('allow-running-insecure-content');
 app.commandLine.appendSwitch('ignore-certificate-errors');
-
-// 媒体流相关
-app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
 app.commandLine.appendSwitch('no-user-gesture-required');
-app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,AutoplayPolicy');
+
+// 关键3：媒体相关
+app.commandLine.appendSwitch('enable-usermedia-screen-capturing');
+app.commandLine.appendSwitch('enable-media-stream');
+app.commandLine.appendSwitch('disable-features', 'MediaDeviceIdSalting,HardwareMediaKeyHandling,IsolateOrigins,site-per-process,AutoplayPolicy');
 
 // ========== 基础配置 ==========
 const TARGET_URL = APP_URL + '/';
@@ -82,33 +87,53 @@ function createWindow() {
   // ========== 权限处理：全部自动授予 ==========
   const ses = mainWindow.webContents.session;
 
-  // 权限请求处理器：所有权限自动同意
+  // 权限请求处理器
   ses.setPermissionRequestHandler((webContents, permission, callback) => {
     callback(true);
   });
 
   // 权限检查处理器
-  try {
-    ses.setPermissionCheckHandler(() => true);
-  } catch (e) {}
+  try { ses.setPermissionCheckHandler(() => true); } catch (e) {}
 
   // 设备权限处理器
-  try {
-    ses.setDevicePermissionHandler(() => true);
-  } catch (e) {}
+  try { ses.setDevicePermissionHandler(() => true); } catch (e) {}
 
-  // 页面加载完成后：注入 JS 覆盖安全上下文标志
+  // 页面加载完成后注入：设置 isSecureContext + 注入摄像头启动脚本
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.executeJavaScript(`
-      try {
-        Object.defineProperty(window, 'isSecureContext', { value: true, writable: true, configurable: true });
-      } catch(e) {}
-      window.__ELECTRON_APP__ = true;
+      (function() {
+        // 强制设置安全上下文标志
+        try { Object.defineProperty(window, 'isSecureContext', { value: true, writable: true, configurable: true }); } catch(e) {}
+        window.__ELECTRON_APP__ = true;
+
+        // 测试摄像头是否可用（仅供调试，不影响实际功能）
+        try {
+          console.log('[摄像头测试] isSecureContext=', window.isSecureContext);
+          console.log('[摄像头测试] navigator.mediaDevices=', !!navigator.mediaDevices);
+          console.log('[摄像头测试] getUserMedia=', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+        } catch(e) {}
+      })();
       true;
     `).catch(() => {});
   });
 
   mainWindow.loadURL(TARGET_URL);
+
+  // F12 打开开发者工具（before-input-event 最可靠）
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' && !input.alt && !input.control && !input.meta) {
+      event.preventDefault();
+      mainWindow.webContents.toggleDevTools();
+    }
+    if ((input.control || input.meta) && input.shift && (input.key === 'I' || input.key === 'i')) {
+      event.preventDefault();
+      mainWindow.webContents.toggleDevTools();
+    }
+    if (input.key === 'F5' && !input.alt && !input.control && !input.meta) {
+      event.preventDefault();
+      mainWindow.reload();
+    }
+  });
 
   // 关闭按钮 → 最小化到托盘
   let willQuit = false;
