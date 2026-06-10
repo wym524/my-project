@@ -1571,3 +1571,335 @@ body {
     font-size: 17px;
   }
 }
+
+/* ---------- 标签筛选栏（单词学习） ---------- */
+.tag-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+  border-radius: 10px;
+  border: 1px solid #dbeafe;
+  margin-bottom: 14px;
+}
+
+.tag-filter-label {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.category-tag-item {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  background: #ffffff;
+  color: #475569;
+  border: 1.5px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.category-tag-item:hover {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #3b82f6;
+}
+
+.category-tag-item.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* ---------- 单词卡片增强：朗读按钮 ---------- */
+.pronounce-btn-lg {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 10px;
+  vertical-align: middle;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.pronounce-btn-lg:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.pronounce-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+}
+
+.pronounce-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+
+.meaning-toggle-btn {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  color: #ffffff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+}
+
+.meaning-toggle-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+}
+
+.pronounce-action-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+}
+
+/* ---------- 测试模式样式 ---------- */
+.test-header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  color: #ffffff;
+  padding: 18px 20px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 16px rgba(30, 58, 138, 0.2);
+}
+
+.test-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.test-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.test-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.test-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  transition: width 0.3s ease;
+  border-radius: 4px;
+  width: 0;
+}
+
+.test-progress-text {
+  font-size: 13px;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+
+.test-score {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.test-score span {
+  font-size: 18px;
+  color: #fbbf24;
+}
+
+.test-word-card {
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+  border-radius: 14px;
+  padding: 28px 24px;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+  border: 1px solid #dbeafe;
+}
+
+.test-word {
+  font-size: 38px;
+  font-weight: 700;
+  color: #1e40af;
+  text-align: center;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.test-question-text {
+  font-size: 14px;
+  color: #475569;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.test-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.test-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #1f2937;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.test-option:hover:not(:disabled) {
+  border-color: #3b82f6;
+  background: #f0f9ff;
+  transform: translateX(4px);
+}
+
+.test-option-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.test-option-text {
+  flex: 1;
+  line-height: 1.6;
+  padding-top: 3px;
+}
+
+.test-option-correct {
+  border-color: #10b981;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.test-option-correct .test-option-label {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.test-option-wrong {
+  border-color: #ef4444;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.test-option-wrong .test-option-label {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.test-option-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.test-feedback-box {
+  padding: 16px 18px;
+  border-radius: 10px;
+  border-left: 4px solid;
+}
+
+.test-feedback-correct {
+  background: #ecfdf5;
+  border-left-color: #10b981;
+}
+
+.test-feedback-wrong {
+  background: #fef2f2;
+  border-left-color: #ef4444;
+}
+
+.test-feedback-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.test-feedback-meaning {
+  font-size: 13.5px;
+  color: #374151;
+  line-height: 1.7;
+  margin-bottom: 6px;
+}
+
+.test-feedback-example {
+  font-size: 13px;
+  color: #475569;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.test-result-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+  border-radius: 16px;
+  padding: 36px 24px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15);
+  border: 1px solid #ede9fe;
+}
+
+.test-result-emoji {
+  font-size: 56px;
+  margin-bottom: 10px;
+}
+
+.test-result-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #4c1d95;
+  margin-bottom: 10px;
+}
+
+.test-result-score {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.test-result-rate {
+  font-size: 14px;
+  color: #6b7280;
+}

@@ -22,7 +22,7 @@
 
     <div class="filter-bar">
       <label><strong>筛选分类:</strong></label>
-      <select id="categoryFilter">
+      <select id="categoryFilter" onchange="applyFilter()">
         <option value="">全部</option>
         <option value="高频">高频</option>
         <option value="学术">学术</option>
@@ -30,18 +30,42 @@
         <option value="口语">口语</option>
         <option value="阅读">阅读</option>
         <option value="听力">听力</option>
+        <option value="自然地理">自然地理</option>
+        <option value="科技发明">科技发明</option>
+        <option value="身心健康">身心健康</option>
+        <option value="同义替换">同义替换</option>
+        <option value="语法">语法</option>
       </select>
       <label style="margin-left:12px;">
-        <input type="checkbox" id="showKnown"> 显示已掌握
+        <input type="checkbox" id="showKnown" onchange="applyFilter()"> 显示已掌握
       </label>
       <button class="btn-primary btn-sm" onclick="applyFilter()">应用筛选</button>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
       <button id="aiBtnWords" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerateWords()">🤖 AI 生成单词</button>
+      <button id="testModeBtn" class="btn-sm" style="padding:6px 12px;background:#8b5cf6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="startTestMode()">🎯 测试模式</button>
+      <button id="seedBtn" class="btn-sm" style="padding:6px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="seedWords()">📥 导入题库</button>
     </div>
+
+    <div class="tag-filter-bar">
+      <span class="tag-filter-label">快速筛选:</span>
+      <span class="category-tag-item active" data-category="">全部</span>
+      <span class="category-tag-item" data-category="高频">高频</span>
+      <span class="category-tag-item" data-category="学术">学术</span>
+      <span class="category-tag-item" data-category="写作">写作</span>
+      <span class="category-tag-item" data-category="口语">口语</span>
+      <span class="category-tag-item" data-category="阅读">阅读</span>
+      <span class="category-tag-item" data-category="听力">听力</span>
+      <span class="category-tag-item" data-category="自然地理">自然地理</span>
+      <span class="category-tag-item" data-category="科技发明">科技发明</span>
+      <span class="category-tag-item" data-category="身心健康">身心健康</span>
+      <span class="category-tag-item" data-category="同义替换">同义替换</span>
+      <span class="category-tag-item" data-category="语法">语法</span>
+    </div>
+
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
     <div class="split-layout">
-      <div class="list-panel">
+      <div class="list-panel" id="listPanel">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:10px 12px; background:#f8fafc; border-radius:8px; font-size:13px;">
           <div style="color:#374151;"><span id="statKnown" style="color:#065f46; font-weight:600;">0</span> / <span id="statTotal" style="font-weight:600;">0</span> 已掌握</div>
           <div style="color:#6b7280;">掌握率: <span id="statRate" style="color:#2563eb; font-weight:600;">0%</span></div>
@@ -56,11 +80,27 @@
         </div>
       </div>
 
-      <div class="detail-panel">
+      <div class="detail-panel" id="detailPanel">
         <div id="wordDetail">
           <div class="empty-state" style="text-align:center; padding:60px 20px;">
             <div style="font-size:48px; margin-bottom:12px;">👈</div>
             <p>请从左侧选择一个单词开始学习</p>
+          </div>
+        </div>
+        <div id="testPanel" style="display:none;">
+          <div class="test-header">
+            <div class="test-title">🎯 单词测试</div>
+            <div class="test-progress-wrap">
+              <div class="test-progress-bar">
+                <div class="test-progress-fill" id="testProgressFill"></div>
+              </div>
+              <div class="test-progress-text" id="testProgressText">第 0 / 10 题</div>
+            </div>
+            <div class="test-score">得分: <span id="testScore">0</span></div>
+          </div>
+          <div id="testContent"></div>
+          <div style="margin-top:20px; text-align:center;">
+            <button class="btn-secondary btn-sm" onclick="exitTestMode()">🚪 退出测试</button>
           </div>
         </div>
       </div>
@@ -162,18 +202,28 @@
       renderList();
     }
 
+    let meaningVisible = true;
+
     function showWord(id) {
       const w = allWords.find(x => x.id === id);
       if (!w) return;
+      meaningVisible = true;
       const container = document.getElementById('wordDetail');
       container.innerHTML = `
         <div class="word-card">
           <span class="category-badge">${w.category || '通用'}</span>
-          <div style="font-size:40px; font-weight:700; color:#1e40af; margin:16px 0 8px; letter-spacing:1px;">${w.word}</div>
-          <div style="color:#4b5563; font-size:16px; margin-bottom:16px;">📘 ${w.meaning}</div>
+          <div style="font-size:40px; font-weight:700; color:#1e40af; margin:16px 0 8px; letter-spacing:1px;">
+            ${w.word}
+            <button class="pronounce-btn-lg" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')" title="点击朗读">🔊 朗读</button>
+          </div>
+          <div style="margin-top:12px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+            <button class="pronounce-btn" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')">🔊 朗读</button>
+            <button class="meaning-toggle-btn" onclick="toggleMeaning()" id="meaningBtn">📝 隐藏释义</button>
+          </div>
+          <div id="meaningSection" style="color:#4b5563; font-size:16px; margin-bottom:16px;">📘 ${w.meaning}</div>
           ${w.example ? `<div style="background:#f9fafb; padding:14px 18px; border-radius:8px; border-left:3px solid #3b82f6; color:#374151; font-style:italic; line-height:1.7; font-size:14px;">💬 "${w.example}"</div>` : ''}
           <div style="margin-top:24px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-            <button class="btn-primary" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')">🔊 朗读</button>
+            <button class="btn-primary pronounce-action-btn" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')">🔊 朗读</button>
             <button class="btn-success" onclick="markKnown(${w.id})">✅ 已掌握</button>
             <button class="btn-secondary" onclick="nextWord()">❌ 不认识</button>
           </div>
@@ -184,6 +234,18 @@
           <button class="btn-secondary" onclick="nextWord()">下一个 →</button>
         </div>
       `;
+    }
+
+    function toggleMeaning() {
+      meaningVisible = !meaningVisible;
+      const meaningSection = document.getElementById('meaningSection');
+      const meaningBtn = document.getElementById('meaningBtn');
+      if (meaningSection) {
+        meaningSection.style.display = meaningVisible ? 'block' : 'none';
+      }
+      if (meaningBtn) {
+        meaningBtn.textContent = meaningVisible ? '📝 隐藏释义' : '📝 查看释义';
+      }
     }
 
     function playPronounce(word) {
@@ -264,6 +326,202 @@
       }
     }
 
+    // ---------- 测试模式 ----------
+    let testQuestions = [];
+    let testIndex = 0;
+    let testScore = 0;
+    let inTestMode = false;
+
+    function startTestMode() {
+      if (words.length < 4) {
+        showToast('当前筛选的单词不足，无法开始测试（至少需要4个）', 'error');
+        return;
+      }
+      inTestMode = true;
+      const pool = words.slice();
+      shuffleArray(pool);
+      const numQuestions = Math.min(10, pool.length);
+      testQuestions = pool.slice(0, numQuestions).map(q => {
+        const distractors = allWords
+          .filter(w => w.id !== q.id && w.meaning !== q.meaning)
+          .slice();
+        shuffleArray(distractors);
+        const options = [q.meaning];
+        const seen = new Set([q.meaning]);
+        for (const d of distractors) {
+          if (seen.has(d.meaning)) continue;
+          options.push(d.meaning);
+          seen.add(d.meaning);
+          if (options.length === 4) break;
+        }
+        while (options.length < 4) {
+          const fake = '选项 ' + options.length;
+          options.push(fake);
+        }
+        shuffleArray(options);
+        return { word: q, options };
+      });
+      testIndex = 0;
+      testScore = 0;
+      document.getElementById('wordDetail').style.display = 'none';
+      document.getElementById('testPanel').style.display = 'block';
+      document.getElementById('testScore').textContent = '0';
+      renderTestQuestion();
+    }
+
+    function renderTestQuestion() {
+      if (testIndex >= testQuestions.length) {
+        finishTest();
+        return;
+      }
+      const q = testQuestions[testIndex];
+      const progress = ((testIndex) / testQuestions.length) * 100;
+      document.getElementById('testProgressFill').style.width = progress + '%';
+      document.getElementById('testProgressText').textContent = `第 ${testIndex + 1} / ${testQuestions.length} 题`;
+      const content = document.getElementById('testContent');
+      content.innerHTML = `
+        <div class="test-word-card">
+          <div class="test-word">${q.word.word}</div>
+          <div class="test-question-text">请选择这个单词的正确释义：</div>
+          <div class="test-options" id="testOptions">
+            ${q.options.map((opt, i) => `
+              <button class="test-option" onclick="answerTest('${escapeJs(opt)}', ${i})">
+                <span class="test-option-label">${String.fromCharCode(65 + i)}</span>
+                <span class="test-option-text">${opt}</span>
+              </button>
+            `).join('')}
+          </div>
+          <div id="testFeedback" style="display:none; margin-top:20px;"></div>
+        </div>
+      `;
+    }
+
+    function escapeJs(s) {
+      return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+
+    function answerTest(selected, idx) {
+      const q = testQuestions[testIndex];
+      const correct = q.word.meaning;
+      const isCorrect = selected === correct;
+      const options = document.querySelectorAll('.test-option');
+      options.forEach((btn, i) => {
+        btn.disabled = true;
+        if (q.options[i] === correct) {
+          btn.classList.add('test-option-correct');
+        } else if (i === idx) {
+          btn.classList.add('test-option-wrong');
+        } else {
+          btn.classList.add('test-option-disabled');
+        }
+      });
+      if (isCorrect) {
+        testScore++;
+        document.getElementById('testScore').textContent = testScore;
+      }
+      const feedback = document.getElementById('testFeedback');
+      feedback.style.display = 'block';
+      feedback.innerHTML = `
+        <div class="test-feedback-box ${isCorrect ? 'test-feedback-correct' : 'test-feedback-wrong'}">
+          <div class="test-feedback-title">${isCorrect ? '✅ 回答正确！' : '❌ 回答错误'}</div>
+          <div class="test-feedback-meaning"><strong>正确释义：</strong>${correct}</div>
+          ${q.word.example ? `<div class="test-feedback-example"><strong>例句：</strong>${q.word.example}</div>` : ''}
+          <button class="btn-primary btn-sm" onclick="nextTestQuestion()" style="margin-top:12px;">${testIndex + 1 >= testQuestions.length ? '查看结果' : '下一题 →'}</button>
+        </div>
+      `;
+    }
+
+    function nextTestQuestion() {
+      testIndex++;
+      if (testIndex >= testQuestions.length) {
+        finishTest();
+      } else {
+        renderTestQuestion();
+      }
+    }
+
+    function finishTest() {
+      const progress = (testIndex / testQuestions.length) * 100;
+      document.getElementById('testProgressFill').style.width = progress + '%';
+      document.getElementById('testProgressText').textContent = `完成 ${testQuestions.length} / ${testQuestions.length} 题`;
+      const content = document.getElementById('testContent');
+      const percentage = Math.round(testScore * 100 / testQuestions.length);
+      let emoji = '😅';
+      if (percentage >= 90) emoji = '🏆';
+      else if (percentage >= 70) emoji = '🎉';
+      else if (percentage >= 50) emoji = '💪';
+      content.innerHTML = `
+        <div class="test-result-card">
+          <div class="test-result-emoji">${emoji}</div>
+          <div class="test-result-title">测试完成！</div>
+          <div class="test-result-score">${testScore} / ${testQuestions.length} 题</div>
+          <div class="test-result-rate">正确率：${percentage}%</div>
+          <div style="margin-top:20px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-primary btn-sm" onclick="startTestMode()">🔁 再来一次</button>
+            <button class="btn-secondary btn-sm" onclick="exitTestMode()">📚 返回学习</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function exitTestMode() {
+      inTestMode = false;
+      document.getElementById('testPanel').style.display = 'none';
+      document.getElementById('wordDetail').style.display = 'block';
+    }
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    // ---------- 导入题库 ----------
+    function seedWords() {
+      const btn = document.getElementById('seedBtn');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      showGen('📥 正在导入题库，请稍候...');
+      fetch('/api/words/seed', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            showGen(`✅ 成功导入 ${res.count || '若干'} 个单词！`);
+            showToast(`成功导入 ${res.count || '若干'} 个单词！`, 'success');
+            setTimeout(() => { loadWords(); showGen(''); }, 1500);
+          } else {
+            showGen('❌ ' + (res.message || '导入失败'));
+            showToast(res.message || '导入失败', 'error');
+            setTimeout(() => showGen(''), 4000);
+          }
+        })
+        .catch(e => {
+          showGen('❌ 请求失败: ' + e.message);
+          showToast('请求失败', 'error');
+          setTimeout(() => showGen(''), 4000);
+        })
+        .finally(() => {
+          if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+        });
+    }
+
+    // ---------- 标签筛选绑定 ----------
+    function bindTagFilter() {
+      document.querySelectorAll('.category-tag-item').forEach(tag => {
+        tag.addEventListener('click', () => {
+          document.querySelectorAll('.category-tag-item').forEach(t => t.classList.remove('active'));
+          tag.classList.add('active');
+          const cat = tag.dataset.category || '';
+          const sel = document.getElementById('categoryFilter');
+          if (sel) {
+            sel.value = cat;
+            applyFilter();
+          }
+        });
+      });
+    }
+
+    bindTagFilter();
     checkAuth();
   </script>
   <script src="notification.js"></script>

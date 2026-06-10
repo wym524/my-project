@@ -983,6 +983,45 @@ app.post('/api/words/:id/known', (req, res) => {
   return res.json({ success: true });
 });
 
+app.post('/api/words/seed', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const seedPath = '/workspace/public/data/vocabulary-seed.json';
+  if (!fs.existsSync(seedPath)) {
+    return res.status(404).json({ success: false, message: '词库文件未找到，请先创建数据' });
+  }
+  let wordList;
+  try {
+    const raw = fs.readFileSync(seedPath, 'utf-8');
+    wordList = JSON.parse(raw);
+  } catch (e) {
+    return res.status(400).json({ success: false, message: '词库文件格式错误' });
+  }
+  if (!Array.isArray(wordList)) {
+    return res.status(400).json({ success: false, message: '词库文件格式错误' });
+  }
+  const total = wordList.length;
+  let imported = 0;
+  let skipped = 0;
+  const checkStmt = db.prepare('SELECT id FROM words WHERE word = ?');
+  const insertStmt = db.prepare('INSERT INTO words (word, meaning, example, category) VALUES (?, ?, ?, ?)');
+  db.exec('BEGIN');
+  try {
+    for (const item of wordList) {
+      if (!item || !item.word || !item.meaning) { skipped++; continue; }
+      const existing = checkStmt.get(item.word);
+      if (existing) { skipped++; continue; }
+      insertStmt.run(item.word, item.meaning, item.example || '', item.category || '高频');
+      imported++;
+    }
+    db.exec('COMMIT');
+    return res.json({ success: true, total, imported, skipped });
+  } catch (err) {
+    db.exec('ROLLBACK');
+    return res.status(500).json({ success: false, message: '导入失败: ' + err.message });
+  }
+});
+
 // ========== 真题 API ==========
 app.get('/api/questions', (req, res) => {
   const session = requireLogin(req, res);
