@@ -56,9 +56,7 @@
       <button id="seedBtn" class="btn-sm" style="padding:6px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="seedWords()">📥 导入题库</button>
     </div>
 
-    <div class="tag-filter-bar" id="tagFilterBar">
-      <span class="tag-filter-label">快速筛选:</span>
-    </div>
+
 
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
@@ -146,7 +144,6 @@
           const cats = new Set();
           allWords.forEach(w => { if (w.category) cats.add(w.category); });
           availableCategories = Array.from(cats).sort();
-          renderTagFilters();
           syncSelectOptions();
           applyFilter();
         }
@@ -221,19 +218,6 @@
 
       words = filtered;
       renderList();
-      // 同步更新标签显示
-      const activeCat = category;
-      const container = document.getElementById('tagFilterBar');
-      if (container) {
-        container.querySelectorAll('.category-tag-item').forEach(tag => {
-          const tagCat = tag.dataset.category || '';
-          if (tagCat === activeCat) {
-            tag.classList.add('active');
-          } else {
-            tag.classList.remove('active');
-          }
-        });
-      }
       if (words.length > 0) {
         currentIndex = 0;
         showWord(words[0].id);
