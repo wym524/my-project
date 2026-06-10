@@ -29,7 +29,8 @@
         <option value="part3">Part 3</option>
       </select>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
-      <button id="aiBtnSpeaking" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
+      <button id="seedBtn" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="seedTopics()">📥 导入题库</button>
+      <button id="aiBtnSpeaking" class="btn-sm" style="padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerate()">🤖 AI 生成内容</button>
     </div>
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
 
@@ -346,6 +347,35 @@
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
       }
+    }
+
+    // ---------- 导入题库 ----------
+    function seedTopics() {
+      const btn = document.getElementById('seedBtn');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      showGen('📥 正在导入题库，请稍候...');
+      fetch('/api/speaking/seed', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            const count = (res.imported !== undefined ? res.imported : (res.count || 0));
+            showGen(`✅ 成功导入 ${count} 个话题！`);
+            showToast(`成功导入 ${count} 个话题！`, 'success');
+            setTimeout(() => { loadTopics(); showGen(''); }, 1500);
+          } else {
+            showGen('❌ ' + (res.message || '导入失败'));
+            showToast(res.message || '导入失败', 'error');
+            setTimeout(() => showGen(''), 4000);
+          }
+        })
+        .catch(e => {
+          showGen('❌ 请求失败: ' + e.message);
+          showToast('请求失败', 'error');
+          setTimeout(() => showGen(''), 4000);
+        })
+        .finally(() => {
+          if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+        });
     }
 
     checkAuth();

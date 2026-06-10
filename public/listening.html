@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>听力词汇 - 雅思学习空间</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-topbar">
+      <div class="brand">📚 雅思学习空间</div>
+      <div class="right-group">
+        <span id="username" class="username"></span>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 12px;"><a id="backBtn" href="dashboard.html" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;">← 返回首页</a></div>
+    <h1 class="page-title">🎧 听力高频词汇</h1>
+    <p class="page-subtitle">按场景分类学习雅思听力高频词，边听边记</p>
+
+    <div class="search-bar" style="margin-bottom: 12px;">
+      <input type="text" id="wordSearch" placeholder="搜索单词或释义..." oninput="applyFilter()" style="width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 8px; box-sizing: border-box;">
+    </div>
+
+    <div class="filter-bar">
+      <label><strong>筛选场景:</strong></label>
+      <select id="categoryFilter" onchange="applyFilter()">
+        <option value="">全部</option>
+      </select>
+      <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
+      <button id="seedBtn" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="seedWords()">📥 导入题库</button>
+      <button id="aiBtnWords" class="btn-sm" style="padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerateWords()">🤖 AI 生成单词</button>
+    </div>
+
+    <div class="tag-filter-bar" id="tagFilterBar">
+      <span class="tag-filter-label">快速筛选:</span>
+    </div>
+
+    <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
+
+    <div class="split-layout">
+      <div class="list-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:10px 12px; background:#f8fafc; border-radius:8px; font-size:13px;">
+          <div style="color:#374151;"><span id="statTotal" style="font-weight:600;">0</span> 个单词</div>
+        </div>
+        <div class="section-title" style="margin-bottom:12px; font-size:15px;">听力词汇列表</div>
+        <div id="wordList" style="max-height:65vh; overflow-y:auto;">
+          <div class="loading-text">加载中...</div>
+        </div>
+      </div>
+
+      <div class="detail-panel">
+        <div id="wordDetail">
+          <div class="empty-state" style="text-align:center; padding:60px 20px;">
+            <div style="font-size:48px; margin-bottom:12px;">👈</div>
+            <p>请从左侧选择一个单词开始学习</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let words = [];
+    let allWords = [];
+    let currentIndex = 0;
+    let currentUser = null;
+    let availableCategories = [];
+
+    function checkAuth() {
+      fetch('/api/me').then(r => r.json()).then(data => {
+        if (!data.username) { window.location.href = 'login.html'; return; }
+        currentUser = data;
+        document.getElementById('username').textContent = '👋 ' + data.username;
+        const bb = document.getElementById('backBtn');
+        if (bb) {
+          if (data.role === 'admin') {
+            bb.href = 'admin.html';
+            bb.textContent = '← 管理员主页';
+            bb.style.background = '#7c3aed';
+          } else {
+            bb.href = 'dashboard.html';
+            bb.textContent = '← 返回首页';
+            bb.style.background = '#2563eb';
+          }
+        }
+        loadWords();
+      }).catch(() => { window.location.href = 'login.html'; });
+    }
+
+    function logout() {
+      fetch('/api/logout', { method: 'POST' }).then(() => { window.location.href = 'login.html'; });
+    }
+
+    function loadWords() {
+      fetch('/api/listening').then(r => r.json()).then(res => {
+        if (res.success) {
+          allWords = res.data || [];
+          const cats = new Set();
+          allWords.forEach(w => { if (w.category) cats.add(w.category); });
+          availableCategories = Array.from(cats).sort();
+          renderTagFilters();
+          syncSelectOptions();
+          applyFilter();
+        }
+      });
+    }
+
+    function syncSelectOptions() {
+      const sel = document.getElementById('categoryFilter');
+      if (!sel) return;
+      const currentVal = sel.value;
+      const html = ['<option value="">全部</option>']
+        .concat(availableCategories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`))
+        .join('');
+      sel.innerHTML = html;
+      if (availableCategories.includes(currentVal)) {
+        sel.value = currentVal;
+      }
+    }
+
+    function renderTagFilters() {
+      const container = document.getElementById('tagFilterBar');
+      if (!container) return;
+      const currentCategory = document.getElementById('categoryFilter')?.value || '';
+      const tagsHtml = ['<span class="tag-filter-label">快速筛选:</span>',
+        `<span class="category-tag-item ${currentCategory === '' ? 'active' : ''}" data-category="">全部(${allWords.length})</span>`]
+        .concat(availableCategories.map(cat => {
+          const count = allWords.filter(w => w.category === cat).length;
+          const isActive = currentCategory === cat ? 'active' : '';
+          return `<span class="category-tag-item ${isActive}" data-category="${escapeHtml(cat)}">${escapeHtml(cat)}(${count})</span>`;
+        }))
+        .join('');
+      container.innerHTML = tagsHtml;
+      container.querySelectorAll('.category-tag-item').forEach(tag => {
+        tag.addEventListener('click', () => {
+          const cat = tag.dataset.category || '';
+          const sel = document.getElementById('categoryFilter');
+          if (sel) sel.value = cat;
+          renderTagFilters();
+          applyFilter();
+        });
+      });
+    }
+
+    function applyFilter() {
+      const category = document.getElementById('categoryFilter').value;
+      const searchInput = document.getElementById('wordSearch');
+      const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+      let filtered = allWords;
+      if (category) {
+        filtered = filtered.filter(w => w.category === category);
+      }
+      if (keyword) {
+        filtered = filtered.filter(w =>
+          (w.word && w.word.toLowerCase().includes(keyword)) ||
+          (w.meaning && w.meaning.toLowerCase().includes(keyword)) ||
+          (w.example && w.example.toLowerCase().includes(keyword))
+        );
+      }
+
+      words = filtered;
+      renderList();
+      const activeCat = category;
+      const container = document.getElementById('tagFilterBar');
+      if (container) {
+        container.querySelectorAll('.category-tag-item').forEach(tag => {
+          const tagCat = tag.dataset.category || '';
+          if (tagCat === activeCat) {
+            tag.classList.add('active');
+          } else {
+            tag.classList.remove('active');
+          }
+        });
+      }
+      const statTotal = document.getElementById('statTotal');
+      if (statTotal) statTotal.textContent = words.length;
+      if (words.length > 0) {
+        currentIndex = 0;
+        showWord(words[0].id);
+      } else {
+        document.getElementById('wordDetail').innerHTML = '<div class="empty-state">没有可学习的单词（试试点击"导入题库"或调整筛选）</div>';
+      }
+    }
+
+    function renderList() {
+      const container = document.getElementById('wordList');
+      if (words.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无单词</div>';
+        return;
+      }
+      container.innerHTML = words.map((w, idx) => `
+        <div class="list-item ${currentIndex === idx ? 'active' : ''}" onclick="selectWord(${idx})" style="cursor:pointer; padding:10px 12px 10px 14px; margin-bottom:6px; border-radius:8px; transition:all 0.2s;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="flex:1;">
+              <div style="font-weight:600; color:#1e40af; font-size:15px;">${escapeHtml(w.word)}</div>
+              <div class="item-sub" style="color:#6b7280; font-size:12px; margin-top:2px;">${escapeHtml(w.meaning)} ${w.category ? `<span style="background:#e0e7ff;color:#3730a3;padding:1px 6px;border-radius:4px;margin-left:4px;font-size:11px;">${escapeHtml(w.category)}</span>` : ''}</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectWord(idx) {
+      currentIndex = idx;
+      showWord(words[idx].id);
+      renderList();
+    }
+
+    function showWord(id) {
+      const w = allWords.find(x => x.id === id);
+      if (!w) return;
+      const container = document.getElementById('wordDetail');
+      container.innerHTML = `
+        <div class="word-card">
+          <span class="category-badge">${escapeHtml(w.category || '听力')}</span>
+          <div style="font-size:40px; font-weight:700; color:#1e40af; margin:16px 0 8px; letter-spacing:1px;">
+            ${escapeHtml(w.word)}
+          </div>
+          <div style="margin-top:12px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+            <button class="pronounce-btn" onclick="playPronounce('${escapeHtml(w.word)}')">🔊 朗读</button>
+          </div>
+          <div style="margin-top:16px; color:#4b5563; font-size:16px;">📘 ${escapeHtml(w.meaning)}</div>
+          ${w.example ? `<div style="margin-top:16px; background:#f9fafb; padding:14px 18px; border-radius:8px; border-left:3px solid #3b82f6; color:#374151; font-style:italic; line-height:1.7; font-size:14px;">💬 "${escapeHtml(w.example)}"</div>` : ''}
+          <div style="margin-top:24px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="playPronounce('${escapeHtml(w.word)}')">🔊 朗读</button>
+            <button class="btn-secondary" onclick="prevWord()">← 上一个</button>
+            <button class="btn-secondary" onclick="nextWord()">下一个 →</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function playPronounce(word) {
+      if ('speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(word);
+        u.lang = 'en-US';
+        u.rate = 0.9;
+        window.speechSynthesis.speak(u);
+      } else {
+        showToast('您的浏览器不支持语音朗读', 'info');
+      }
+    }
+
+    function prevWord() {
+      if (words.length === 0) return;
+      currentIndex = (currentIndex - 1 + words.length) % words.length;
+      showWord(words[currentIndex].id);
+      renderList();
+    }
+
+    function nextWord() {
+      if (words.length === 0) return;
+      currentIndex = (currentIndex + 1) % words.length;
+      showWord(words[currentIndex].id);
+      renderList();
+    }
+
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast ' + (type === 'success' ? 'toast-success' : (type === 'error' ? 'toast-error' : 'toast-info'));
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    function showGen(msg) {
+      const s = document.getElementById('genStatus');
+      if (msg) { s.style.display = 'block'; s.textContent = msg; }
+      else { s.style.display = 'none'; }
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function aiGenerateWords() {
+      const btn = document.getElementById('aiBtnWords');
+      const oldText = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+
+      const cat = document.getElementById('categoryFilter').value || '日常对话';
+      showGen('🤖 正在调用 AI 生成' + cat + '类听力单词，请稍候...');
+
+      try {
+        const r = await fetch('/api/ai/generate-words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: cat, count: 10 }) });
+        const data = await r.json();
+        if (data.success) {
+          showGen('✅ 成功生成 ' + (data.count || '若干') + ' 个' + cat + '单词！正在刷新列表...');
+          setTimeout(() => { loadWords(); showGen(''); }, 1500);
+        } else {
+          showGen('❌ ' + data.message);
+          setTimeout(() => showGen(''), 4000);
+        }
+      } catch (e) {
+        showGen('❌ 网络错误: ' + e.message);
+        setTimeout(() => showGen(''), 4000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = oldText; btn.style.opacity = ''; btn.style.cursor = ''; }
+      }
+    }
+
+    function seedWords() {
+      const btn = document.getElementById('seedBtn');
+      if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
+      showGen('📥 正在导入题库，请稍候...');
+      fetch('/api/listening/seed', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            const count = (res.imported !== undefined ? res.imported : (res.count || 0));
+            showGen(`✅ 成功导入 ${count} 个单词！`);
+            showToast(`成功导入 ${count} 个单词！`, 'success');
+            setTimeout(() => { loadWords(); showGen(''); }, 1500);
+          } else {
+            showGen('❌ ' + (res.message || '导入失败'));
+            showToast(res.message || '导入失败', 'error');
+            setTimeout(() => showGen(''), 4000);
+          }
+        })
+        .catch(e => {
+          showGen('❌ 请求失败: ' + e.message);
+          showToast('请求失败', 'error');
+          setTimeout(() => showGen(''), 4000);
+        })
+        .finally(() => {
+          if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+        });
+    }
+
+    checkAuth();
+  </script>
+  <script src="notification.js"></script>
+</body>
+</html>

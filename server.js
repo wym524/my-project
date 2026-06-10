@@ -49,6 +49,18 @@ db.exec(`
   );
 `);
 
+// listening_vocabulary 听力高频词汇表
+db.exec(`
+  CREATE TABLE IF NOT EXISTS listening_vocabulary (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    word TEXT NOT NULL,
+    meaning TEXT,
+    category TEXT,
+    example TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 // questions 真题题库
 db.exec(`
   CREATE TABLE IF NOT EXISTS questions (
@@ -990,6 +1002,7 @@ app.post('/api/words/seed', (req, res) => {
   if (!fs.existsSync(seedPath)) {
     return res.status(404).json({ success: false, message: '词库文件未找到，请先创建数据' });
   }
+  const { reset } = req.body || {};
   let wordList;
   try {
     const raw = fs.readFileSync(seedPath, 'utf-8');
@@ -1003,19 +1016,29 @@ app.post('/api/words/seed', (req, res) => {
   const total = wordList.length;
   let imported = 0;
   let skipped = 0;
+  let deleted = 0;
   const checkStmt = db.prepare('SELECT id FROM words WHERE word = ?');
   const insertStmt = db.prepare('INSERT INTO words (word, meaning, example, category) VALUES (?, ?, ?, ?)');
   db.exec('BEGIN');
   try {
+    if (reset) {
+      const count = db.prepare('SELECT COUNT(*) AS c FROM words').get().c;
+      if (count > 0) {
+        db.prepare('DELETE FROM words').run();
+        deleted = count;
+      }
+    }
     for (const item of wordList) {
       if (!item || !item.word || !item.meaning) { skipped++; continue; }
-      const existing = checkStmt.get(item.word);
-      if (existing) { skipped++; continue; }
+      if (!reset) {
+        const existing = checkStmt.get(item.word);
+        if (existing) { skipped++; continue; }
+      }
       insertStmt.run(item.word, item.meaning, item.example || '', item.category || '高频');
       imported++;
     }
     db.exec('COMMIT');
-    return res.json({ success: true, total, imported, skipped });
+    return res.json({ success: true, total, imported, skipped, deleted });
   } catch (err) {
     db.exec('ROLLBACK');
     return res.status(500).json({ success: false, message: '导入失败: ' + err.message });
@@ -1130,6 +1153,30 @@ app.post('/api/speaking/:id/practice', (req, res) => {
   return res.json({ success: true });
 });
 
+app.post('/api/speaking/seed', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const seedPath = path.join(__dirname, 'public', 'data', 'speaking-seed.json');
+  if (!fs.existsSync(seedPath)) return res.status(404).json({ success: false, message: '口语题库未找到' });
+  let items;
+  try { items = JSON.parse(fs.readFileSync(seedPath, 'utf-8')); } catch (e) { return res.status(400).json({ success: false, message: '文件格式错误' }); }
+  let imported = 0, skipped = 0;
+  const insertStmt = db.prepare('INSERT INTO speaking_topics (topic, part, prompts, sample_answer) VALUES (?, ?, ?, ?)');
+  db.exec('BEGIN');
+  try {
+    for (const item of items) {
+      if (!item || !item.topic || !item.part) { skipped++; continue; }
+      const existing = db.prepare('SELECT id FROM speaking_topics WHERE topic = ? AND part = ?').get(item.topic, item.part);
+      if (existing) { skipped++; continue; }
+      const promptsStr = Array.isArray(item.prompts) ? JSON.stringify(item.prompts) : (item.prompts || null);
+      insertStmt.run(item.topic, item.part, promptsStr, item.sample_answer || '');
+      imported++;
+    }
+    db.exec('COMMIT');
+    return res.json({ success: true, total: items.length, imported, skipped });
+  } catch (err) { db.exec('ROLLBACK'); return res.status(500).json({ success: false, message: String(err.message) }); }
+});
+
 // ========== 写作 API ==========
 app.get('/api/writing', (req, res) => {
   const session = requireLogin(req, res);
@@ -1167,6 +1214,67 @@ app.delete('/api/writing/:id', (req, res) => {
   if (!session) return;
   db.prepare('DELETE FROM writing_topics WHERE id = ?').run(Number(req.params.id));
   return res.json({ success: true });
+});
+
+app.post('/api/writing/seed', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const seedPath = path.join(__dirname, 'public', 'data', 'writing-seed.json');
+  if (!fs.existsSync(seedPath)) return res.status(404).json({ success: false, message: '写作题库未找到' });
+  let items;
+  try { items = JSON.parse(fs.readFileSync(seedPath, 'utf-8')); } catch (e) { return res.status(400).json({ success: false, message: '文件格式错误' }); }
+  let imported = 0, skipped = 0;
+  const insertStmt = db.prepare('INSERT INTO writing_topics (type, prompt, sample_outline, sample_essay) VALUES (?, ?, ?, ?)');
+  db.exec('BEGIN');
+  try {
+    for (const item of items) {
+      if (!item || !item.type || !item.prompt) { skipped++; continue; }
+      const existing = db.prepare('SELECT id FROM writing_topics WHERE prompt = ?').get(item.prompt);
+      if (existing) { skipped++; continue; }
+      insertStmt.run(item.type, item.prompt, item.sample_outline || '', item.sample_essay || '');
+      imported++;
+    }
+    db.exec('COMMIT');
+    return res.json({ success: true, total: items.length, imported, skipped });
+  } catch (err) { db.exec('ROLLBACK'); return res.status(500).json({ success: false, message: String(err.message) }); }
+});
+
+// ========== 听力高频词汇 API ==========
+app.get('/api/listening', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const { category, limit } = req.query;
+  let sql = 'SELECT * FROM listening_vocabulary WHERE 1=1';
+  const params = [];
+  if (category) { sql += ' AND category = ?'; params.push(category); }
+  sql += ' ORDER BY id ASC';
+  if (limit) { sql += ' LIMIT ?'; params.push(Number(limit)); }
+  const rows = db.prepare(sql).all(...params);
+  const total = db.prepare('SELECT COUNT(*) AS c FROM listening_vocabulary WHERE 1=1' + (category ? ' AND category = ?' : '')).get(...(category ? [category] : [])).c;
+  return res.json({ success: true, data: rows, total });
+});
+
+app.post('/api/listening/seed', (req, res) => {
+  const session = requireLogin(req, res);
+  if (!session) return;
+  const seedPath = path.join(__dirname, 'public', 'data', 'listening-seed.json');
+  if (!fs.existsSync(seedPath)) return res.status(404).json({ success: false, message: '听力题库未找到' });
+  let items;
+  try { items = JSON.parse(fs.readFileSync(seedPath, 'utf-8')); } catch (e) { return res.status(400).json({ success: false, message: '文件格式错误' }); }
+  let imported = 0, skipped = 0;
+  const insertStmt = db.prepare('INSERT INTO listening_vocabulary (word, meaning, category, example) VALUES (?, ?, ?, ?)');
+  db.exec('BEGIN');
+  try {
+    for (const item of items) {
+      if (!item || !item.word) { skipped++; continue; }
+      const existing = db.prepare('SELECT id FROM listening_vocabulary WHERE word = ?').get(item.word);
+      if (existing) { skipped++; continue; }
+      insertStmt.run(item.word, item.meaning || '', item.category || '', item.example || '');
+      imported++;
+    }
+    db.exec('COMMIT');
+    return res.json({ success: true, total: items.length, imported, skipped });
+  } catch (err) { db.exec('ROLLBACK'); return res.status(500).json({ success: false, message: String(err.message) }); }
 });
 
 // ========== 任务系统 API ==========

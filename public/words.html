@@ -20,6 +20,10 @@
     <h1 class="page-title">📖 背单词</h1>
     <p class="page-subtitle">分模块学习雅思高频词汇，掌握后可标记为"已掌握"</p>
 
+    <div class="search-bar" style="margin-bottom: 12px;">
+      <input type="text" id="wordSearch" placeholder="搜索单词或释义..." oninput="applyFilter()" style="width: 100%; padding: 10px 14px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 8px; box-sizing: border-box;">
+    </div>
+
     <div class="filter-bar">
       <label><strong>筛选分类:</strong></label>
       <select id="categoryFilter" onchange="applyFilter()">
@@ -31,35 +35,29 @@
         <option value="阅读">阅读</option>
         <option value="听力">听力</option>
         <option value="自然地理">自然地理</option>
+        <option value="植物研究">植物研究</option>
+        <option value="动物保护">动物保护</option>
         <option value="科技发明">科技发明</option>
         <option value="身心健康">身心健康</option>
         <option value="同义替换">同义替换</option>
         <option value="语法">语法</option>
+        <option value="商务经济">商务经济</option>
+        <option value="文化艺术">文化艺术</option>
       </select>
       <label style="margin-left:12px;">
-        <input type="checkbox" id="showKnown" onchange="applyFilter()"> 显示已掌握
+        <input type="checkbox" id="showUnknown" onchange="applyFilter()"> 只看未掌握
       </label>
-      <button class="btn-primary btn-sm" onclick="applyFilter()">应用筛选</button>
+      <label style="margin-left:12px;">
+        <input type="checkbox" id="showKnown" onchange="applyFilter()"> 只看已掌握
+      </label>
       <button class="btn-secondary btn-sm" onclick="window.location.href='dashboard.html'">返回主页</button>
       <button id="aiBtnWords" class="btn-sm" style="margin-left:12px;padding:6px 12px;background:#f472b6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="aiGenerateWords()">🤖 AI 生成单词</button>
       <button id="testModeBtn" class="btn-sm" style="padding:6px 12px;background:#8b5cf6;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="startTestMode()">🎯 测试模式</button>
       <button id="seedBtn" class="btn-sm" style="padding:6px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="seedWords()">📥 导入题库</button>
     </div>
 
-    <div class="tag-filter-bar">
+    <div class="tag-filter-bar" id="tagFilterBar">
       <span class="tag-filter-label">快速筛选:</span>
-      <span class="category-tag-item active" data-category="">全部</span>
-      <span class="category-tag-item" data-category="高频">高频</span>
-      <span class="category-tag-item" data-category="学术">学术</span>
-      <span class="category-tag-item" data-category="写作">写作</span>
-      <span class="category-tag-item" data-category="口语">口语</span>
-      <span class="category-tag-item" data-category="阅读">阅读</span>
-      <span class="category-tag-item" data-category="听力">听力</span>
-      <span class="category-tag-item" data-category="自然地理">自然地理</span>
-      <span class="category-tag-item" data-category="科技发明">科技发明</span>
-      <span class="category-tag-item" data-category="身心健康">身心健康</span>
-      <span class="category-tag-item" data-category="同义替换">同义替换</span>
-      <span class="category-tag-item" data-category="语法">语法</span>
     </div>
 
     <div id="genStatus" style="margin:8px 0;padding:8px 12px;display:none;background:#fef3c7;color:#92400e;border-radius:6px;font-size:13px;"></div>
@@ -113,6 +111,7 @@
     let knownIds = new Set();
     let currentIndex = 0;
     let currentUser = null;
+    let availableCategories = [];
 
     function checkAuth() {
       fetch('/api/me').then(r => r.json()).then(data => {
@@ -140,29 +139,106 @@
     }
 
     function loadWords() {
-      const cat = document.getElementById('categoryFilter').value;
-      const url = '/api/words' + (cat ? '?category=' + encodeURIComponent(cat) : '');
-      fetch(url).then(r => r.json()).then(res => {
+      fetch('/api/words').then(r => r.json()).then(res => {
         if (res.success) {
           allWords = res.data || [];
+          // 从数据中自动提取可用分类
+          const cats = new Set();
+          allWords.forEach(w => { if (w.category) cats.add(w.category); });
+          availableCategories = Array.from(cats).sort();
+          renderTagFilters();
+          syncSelectOptions();
           applyFilter();
         }
       });
     }
 
-    function applyFilter() {
-      const showKnown = document.getElementById('showKnown').checked;
-      if (showKnown) {
-        words = allWords.slice();
-      } else {
-        words = allWords.filter(w => !knownIds.has(w.id));
+    function syncSelectOptions() {
+      // 同步下拉框选项（保持现有选中值）
+      const sel = document.getElementById('categoryFilter');
+      if (!sel) return;
+      const currentVal = sel.value;
+      const html = ['<option value="">全部</option>']
+        .concat(availableCategories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`))
+        .join('');
+      sel.innerHTML = html;
+      if (availableCategories.includes(currentVal)) {
+        sel.value = currentVal;
       }
+    }
+
+    function renderTagFilters() {
+      const container = document.getElementById('tagFilterBar');
+      if (!container) return;
+      const currentCategory = document.getElementById('categoryFilter')?.value || '';
+      const tagsHtml = ['<span class="tag-filter-label">快速筛选:</span>',
+        `<span class="category-tag-item ${currentCategory === '' ? 'active' : ''}" data-category="">全部(${allWords.length})</span>`]
+        .concat(availableCategories.map(cat => {
+          const count = allWords.filter(w => w.category === cat).length;
+          const isActive = currentCategory === cat ? 'active' : '';
+          return `<span class="category-tag-item ${isActive}" data-category="${escapeHtml(cat)}">${escapeHtml(cat)}(${count})</span>`;
+        }))
+        .join('');
+      container.innerHTML = tagsHtml;
+      // 绑定点击事件
+      container.querySelectorAll('.category-tag-item').forEach(tag => {
+        tag.addEventListener('click', () => {
+          const cat = tag.dataset.category || '';
+          const sel = document.getElementById('categoryFilter');
+          if (sel) sel.value = cat;
+          // 重新渲染标签以更新 active
+          renderTagFilters();
+          applyFilter();
+        });
+      });
+    }
+
+    function applyFilter() {
+      const category = document.getElementById('categoryFilter').value;
+      const showOnlyUnknown = document.getElementById('showUnknown').checked;
+      const showOnlyKnown = document.getElementById('showKnown').checked;
+      const searchInput = document.getElementById('wordSearch');
+      const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+      let filtered = allWords;
+      // 分类筛选
+      if (category) {
+        filtered = filtered.filter(w => w.category === category);
+      }
+      // 关键词搜索（单词或释义）
+      if (keyword) {
+        filtered = filtered.filter(w =>
+          (w.word && w.word.toLowerCase().includes(keyword)) ||
+          (w.meaning && w.meaning.toLowerCase().includes(keyword))
+        );
+      }
+      // 掌握状态筛选
+      if (showOnlyKnown) {
+        filtered = filtered.filter(w => knownIds.has(w.id));
+      } else if (showOnlyUnknown) {
+        filtered = filtered.filter(w => !knownIds.has(w.id));
+      }
+
+      words = filtered;
       renderList();
+      // 同步更新标签显示
+      const activeCat = category;
+      const container = document.getElementById('tagFilterBar');
+      if (container) {
+        container.querySelectorAll('.category-tag-item').forEach(tag => {
+          const tagCat = tag.dataset.category || '';
+          if (tagCat === activeCat) {
+            tag.classList.add('active');
+          } else {
+            tag.classList.remove('active');
+          }
+        });
+      }
       if (words.length > 0) {
         currentIndex = 0;
         showWord(words[0].id);
       } else {
-        document.getElementById('wordDetail').innerHTML = '<div class="empty-state">没有可学习的单词</div>';
+        document.getElementById('wordDetail').innerHTML = '<div class="empty-state">没有可学习的单词（试试点击"导入题库"或调整筛选）</div>';
       }
     }
 
@@ -187,8 +263,8 @@
         <div class="list-item ${currentIndex === idx ? 'active' : ''}" onclick="selectWord(${idx})" style="cursor:pointer; padding:10px 12px 10px 14px; margin-bottom:6px; border-radius:8px; transition:all 0.2s; border-left:4px solid ${known ? '#10b981' : '#d1d5db'};">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div style="flex:1;">
-              <div style="font-weight:600; color:#1e40af; font-size:15px;">${w.word}</div>
-              <div class="item-sub" style="color:#6b7280; font-size:12px; margin-top:2px;">${w.meaning}</div>
+              <div style="font-weight:600; color:#1e40af; font-size:15px;">${escapeHtml(w.word)}</div>
+              <div class="item-sub" style="color:#6b7280; font-size:12px; margin-top:2px;">${escapeHtml(w.meaning)} ${w.category ? `<span style="background:#e0e7ff;color:#3730a3;padding:1px 6px;border-radius:4px;margin-left:4px;font-size:11px;">${escapeHtml(w.category)}</span>` : ''}</div>
             </div>
             <div style="font-size:18px; margin-left:8px;">${known ? '✅' : '⬜'}</div>
           </div>
@@ -211,19 +287,18 @@
       const container = document.getElementById('wordDetail');
       container.innerHTML = `
         <div class="word-card">
-          <span class="category-badge">${w.category || '通用'}</span>
+          <span class="category-badge">${escapeHtml(w.category || '通用')}</span>
           <div style="font-size:40px; font-weight:700; color:#1e40af; margin:16px 0 8px; letter-spacing:1px;">
-            ${w.word}
-            <button class="pronounce-btn-lg" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')" title="点击朗读">🔊 朗读</button>
+            ${escapeHtml(w.word)}
           </div>
           <div style="margin-top:12px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
-            <button class="pronounce-btn" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')">🔊 朗读</button>
+            <button class="pronounce-btn" onclick="playPronounce('${escapeHtml(w.word)}')">🔊 朗读</button>
             <button class="meaning-toggle-btn" onclick="toggleMeaning()" id="meaningBtn">📝 隐藏释义</button>
           </div>
-          <div id="meaningSection" style="color:#4b5563; font-size:16px; margin-bottom:16px;">📘 ${w.meaning}</div>
-          ${w.example ? `<div style="background:#f9fafb; padding:14px 18px; border-radius:8px; border-left:3px solid #3b82f6; color:#374151; font-style:italic; line-height:1.7; font-size:14px;">💬 "${w.example}"</div>` : ''}
+          <div id="meaningSection" style="color:#4b5563; font-size:16px; margin-bottom:16px; margin-top:12px;">📘 ${escapeHtml(w.meaning)}</div>
+          ${w.example ? `<div style="background:#f9fafb; padding:14px 18px; border-radius:8px; border-left:3px solid #3b82f6; color:#374151; font-style:italic; line-height:1.7; font-size:14px;">💬 "${escapeHtml(w.example)}"</div>` : ''}
           <div style="margin-top:24px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-            <button class="btn-primary pronounce-action-btn" onclick="playPronounce('${w.word.replace(/'/g, "\\'")}')">🔊 朗读</button>
+            <button class="btn-primary pronounce-action-btn" onclick="playPronounce('${escapeHtml(w.word)}')">🔊 朗读</button>
             <button class="btn-success" onclick="markKnown(${w.id})">✅ 已掌握</button>
             <button class="btn-secondary" onclick="nextWord()">❌ 不认识</button>
           </div>
@@ -300,19 +375,24 @@
       else { s.style.display = 'none'; }
     }
 
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     async function aiGenerateWords() {
-      const btn = document.getElementById('aiBtnWords') || document.querySelector('button[onclick="aiGenerateWords()"]');
+      const btn = document.getElementById('aiBtnWords');
       const oldText = btn ? btn.textContent : '';
       if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中...'; btn.style.opacity = '0.6'; btn.style.cursor = 'not-allowed'; }
-      
+
       const cat = document.getElementById('categoryFilter').value || '高频';
       showGen('🤖 正在调用 AI 生成' + cat + '类单词，请稍候...');
-      
+
       try {
         const r = await fetch('/api/ai/generate-words', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: cat, count: 10 }) });
         const data = await r.json();
         if (data.success) {
-          showGen('✅ 成功生成 ' + data.count + ' 个' + cat + '单词！正在刷新列表...');
+          showGen('✅ 成功生成 ' + (data.count || '若干') + ' 个' + cat + '单词！正在刷新列表...');
           setTimeout(() => { loadWords(); showGen(''); }, 1500);
         } else {
           showGen('❌ ' + data.message);
@@ -381,13 +461,13 @@
       const content = document.getElementById('testContent');
       content.innerHTML = `
         <div class="test-word-card">
-          <div class="test-word">${q.word.word}</div>
+          <div class="test-word">${escapeHtml(q.word.word)}</div>
           <div class="test-question-text">请选择这个单词的正确释义：</div>
           <div class="test-options" id="testOptions">
             ${q.options.map((opt, i) => `
-              <button class="test-option" onclick="answerTest('${escapeJs(opt)}', ${i})">
+              <button class="test-option" onclick="answerTest(${i})">
                 <span class="test-option-label">${String.fromCharCode(65 + i)}</span>
-                <span class="test-option-text">${opt}</span>
+                <span class="test-option-text">${escapeHtml(opt)}</span>
               </button>
             `).join('')}
           </div>
@@ -396,14 +476,10 @@
       `;
     }
 
-    function escapeJs(s) {
-      return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-    }
-
-    function answerTest(selected, idx) {
+    function answerTest(idx) {
       const q = testQuestions[testIndex];
       const correct = q.word.meaning;
-      const isCorrect = selected === correct;
+      const isCorrect = q.options[idx] === correct;
       const options = document.querySelectorAll('.test-option');
       options.forEach((btn, i) => {
         btn.disabled = true;
@@ -424,8 +500,8 @@
       feedback.innerHTML = `
         <div class="test-feedback-box ${isCorrect ? 'test-feedback-correct' : 'test-feedback-wrong'}">
           <div class="test-feedback-title">${isCorrect ? '✅ 回答正确！' : '❌ 回答错误'}</div>
-          <div class="test-feedback-meaning"><strong>正确释义：</strong>${correct}</div>
-          ${q.word.example ? `<div class="test-feedback-example"><strong>例句：</strong>${q.word.example}</div>` : ''}
+          <div class="test-feedback-meaning"><strong>正确释义：</strong>${escapeHtml(correct)}</div>
+          ${q.word.example ? `<div class="test-feedback-example"><strong>例句：</strong>${escapeHtml(q.word.example)}</div>` : ''}
           <button class="btn-primary btn-sm" onclick="nextTestQuestion()" style="margin-top:12px;">${testIndex + 1 >= testQuestions.length ? '查看结果' : '下一题 →'}</button>
         </div>
       `;
@@ -486,8 +562,9 @@
         .then(r => r.json())
         .then(res => {
           if (res.success) {
-            showGen(`✅ 成功导入 ${res.count || '若干'} 个单词！`);
-            showToast(`成功导入 ${res.count || '若干'} 个单词！`, 'success');
+            const count = (res.imported !== undefined ? res.imported : (res.count || 0));
+            showGen(`✅ 成功导入 ${count} 个单词！`);
+            showToast(`成功导入 ${count} 个单词！`, 'success');
             setTimeout(() => { loadWords(); showGen(''); }, 1500);
           } else {
             showGen('❌ ' + (res.message || '导入失败'));
@@ -505,23 +582,6 @@
         });
     }
 
-    // ---------- 标签筛选绑定 ----------
-    function bindTagFilter() {
-      document.querySelectorAll('.category-tag-item').forEach(tag => {
-        tag.addEventListener('click', () => {
-          document.querySelectorAll('.category-tag-item').forEach(t => t.classList.remove('active'));
-          tag.classList.add('active');
-          const cat = tag.dataset.category || '';
-          const sel = document.getElementById('categoryFilter');
-          if (sel) {
-            sel.value = cat;
-            applyFilter();
-          }
-        });
-      });
-    }
-
-    bindTagFilter();
     checkAuth();
   </script>
   <script src="notification.js"></script>
