@@ -7,22 +7,27 @@ const fs = require('fs');
 const https = require('https');
 const WebSocket = require('ws');
 
-const app = express();
-const PORT = 3000;
+// ---------- 环境支持：可被 Electron 内嵌启动 ----------
+const isElectron = typeof process !== 'undefined' && process.versions && !!process.versions.electron;
+const APP_ROOT = isElectron ? (process.resourcesPath ? path.join(process.resourcesPath, 'app') : __dirname) : __dirname;
 
-// ---------- 实时视频流（纯内存，不保存任何文件）----------
-// { username: { frame: 'data:image/jpeg;base64,...', ts: 毫秒 } }
-const liveFrames = new Map();
-const studentConnections = new Map(); // username -> WebSocket
-const adminConnections = new Set();   // 管理员 WebSocket 集合
-
-// ---------- 数据库初始化 ----------
-const DATA_DIR = '/data';
+const DATA_DIR = process.env.IELTS_DATA_DIR || path.join(
+  process.env.HOME || process.env.USERPROFILE || __dirname,
+  '.ielts-study-space'
+);
 const DB_PATH = path.join(DATA_DIR, 'users.db');
+const PORT = parseInt(process.env.IELTS_PORT || '3000', 10) || 3000;
 
 if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { /* ignore */ }
 }
+
+const app = express();
+
+// ---------- 实时视频流（纯内存，不保存任何文件）----------
+const liveFrames = new Map();
+const studentConnections = new Map();
+const adminConnections = new Set();
 
 const db = new Database(DB_PATH);
 
@@ -799,7 +804,7 @@ const initialWriting = [
 // ---------- Express 中间件 ----------
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(APP_ROOT, 'public')));
 
 // ---------- Session 解析工具 ----------
 const parseSession = (req) => {
@@ -998,7 +1003,7 @@ app.post('/api/words/:id/known', (req, res) => {
 app.post('/api/words/seed', (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const seedPath = path.join(__dirname, 'public', 'data', 'vocabulary-seed.json');
+  const seedPath = path.join(APP_ROOT, 'public', 'data', 'vocabulary-seed.json');
   if (!fs.existsSync(seedPath)) {
     return res.status(404).json({ success: false, message: '词库文件未找到，请先创建数据' });
   }
@@ -1153,7 +1158,8 @@ app.post('/api/speaking/:id/practice', (req, res) => {
   return res.json({ success: true });
 });
 
-app.post('/api/speaking/seed', (req, res) => {
+// seed 路径用 APP_ROOT 解析
+app.post('/api/speaking/seed'', (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
   const seedPath = path.join(__dirname, 'public', 'data', 'speaking-seed.json');
