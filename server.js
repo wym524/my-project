@@ -986,7 +986,7 @@ app.post('/api/words/:id/known', (req, res) => {
 app.post('/api/words/seed', (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const seedPath = '/workspace/public/data/vocabulary-seed.json';
+  const seedPath = path.join(__dirname, 'public', 'data', 'vocabulary-seed.json');
   if (!fs.existsSync(seedPath)) {
     return res.status(404).json({ success: false, message: '词库文件未找到，请先创建数据' });
   }
