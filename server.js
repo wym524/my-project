@@ -1158,11 +1158,10 @@ app.post('/api/speaking/:id/practice', (req, res) => {
   return res.json({ success: true });
 });
 
-// seed 路径用 APP_ROOT 解析
-app.post('/api/speaking/seed'', (req, res) => {
+app.post('/api/speaking/seed', (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const seedPath = path.join(__dirname, 'public', 'data', 'speaking-seed.json');
+  const seedPath = path.join(APP_ROOT, 'public', 'data', 'speaking-seed.json');
   if (!fs.existsSync(seedPath)) return res.status(404).json({ success: false, message: '口语题库未找到' });
   let items;
   try { items = JSON.parse(fs.readFileSync(seedPath, 'utf-8')); } catch (e) { return res.status(400).json({ success: false, message: '文件格式错误' }); }
@@ -1225,7 +1224,7 @@ app.delete('/api/writing/:id', (req, res) => {
 app.post('/api/writing/seed', (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const seedPath = path.join(__dirname, 'public', 'data', 'writing-seed.json');
+  const seedPath = path.join(APP_ROOT, 'public', 'data', 'writing-seed.json');
   if (!fs.existsSync(seedPath)) return res.status(404).json({ success: false, message: '写作题库未找到' });
   let items;
   try { items = JSON.parse(fs.readFileSync(seedPath, 'utf-8')); } catch (e) { return res.status(400).json({ success: false, message: '文件格式错误' }); }
@@ -1263,7 +1262,7 @@ app.get('/api/listening', (req, res) => {
 app.post('/api/listening/seed', (req, res) => {
   const session = requireLogin(req, res);
   if (!session) return;
-  const seedPath = path.join(__dirname, 'public', 'data', 'listening-seed.json');
+  const seedPath = path.join(APP_ROOT, 'public', 'data', 'listening-seed.json');
   if (!fs.existsSync(seedPath)) return res.status(404).json({ success: false, message: '听力题库未找到' });
   let items;
   try { items = JSON.parse(fs.readFileSync(seedPath, 'utf-8')); } catch (e) { return res.status(400).json({ success: false, message: '文件格式错误' }); }
